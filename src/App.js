@@ -1,4 +1,4 @@
-/* eslint-disable no-undef */
+/* eslint-disable */
 import { useState, useEffect, useRef, useCallback } from "react";
 
 const T = {
