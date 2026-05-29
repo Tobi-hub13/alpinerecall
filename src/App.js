@@ -70,9 +70,15 @@ function expiryColor(s) { return s==="expired"?T.red:s==="critical"?T.orange:s==
 function catIcon(c)  { const m={Helm:"⛑️",Seil:"🪢",Karabiner:"🔗","LVS-Gerät":"📡",Gurt:"🧗",Pickel:"⛏️",Steigeisen:"🦶",Sicherung:"🔒",Rucksack:"🎒"};return m[c]||"🏔️"; }
 function catColor(c) { const m={Helm:T.blue,Seil:T.teal,Karabiner:T.orange,"LVS-Gerät":T.navy,Gurt:T.green,Pickel:T.s700,Steigeisen:T.purple,Sicherung:T.teal,Rucksack:T.orange};return m[c]||T.s500; }
 
-async function sLoad(k,fb=null,shared=false){try{const r=await window.storage.get(k,shared);return r?JSON.parse(r.value):fb;}catch{return fb;}}
-async function sSave(k,v,shared=false){try{await window.storage.set(k,JSON.stringify(v),shared);}catch{}}
-async function sDel(k,shared=false){try{await window.storage.delete(k,shared);}catch{}}
+async function sLoad(k, fb=null) {
+  try { const v=localStorage.getItem(k); return v?JSON.parse(v):fb; } catch { return fb; }
+}
+async function sSave(k, v) {
+  try { localStorage.setItem(k, JSON.stringify(v)); } catch {}
+}
+async function sDel(k) {
+  try { localStorage.removeItem(k); } catch {}
+}
 
 function Icon({n,s=22,c="currentColor"}){
   const p={width:s,height:s,viewBox:"0 0 24 24",fill:"none",stroke:c,strokeWidth:"2",strokeLinecap:"round",strokeLinejoin:"round"};
