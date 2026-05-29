@@ -1,4 +1,4 @@
-/* eslint-disable */
+/* eslint-disable no-undef */
 import { useState, useEffect, useRef, useCallback } from "react";
 
 const T = {
@@ -42,12 +42,22 @@ const DEMO_USERS = {
   "anna@sac.ch": { pw:"demo1234", name:"Anna Berger", initials:"AB" },
 };
 
+// Tour-Kategorien
+const TOUR_TYPES = [
+  { id:"klettern",   label:"Klettern",     icon:"🧗", color:"#2563EB" },
+  { id:"hochtour",   label:"Hochtour",     icon:"🏔️", color:"#0D9488" },
+  { id:"skitouren",  label:"Skitouren",    icon:"⛷️", color:"#7C3AED" },
+  { id:"wandern",    label:"Wandern",      icon:"🥾", color:"#16A34A" },
+  { id:"eisklettern",label:"Eisklettern",  icon:"🧊", color:"#0284C7" },
+  { id:"alle",       label:"Alle Touren",  icon:"🗺️", color:"#64748B" },
+];
+
 const INIT_GEAR = [
-  { id:"g1", name:"Helm Petzl Meteor IV",    brand:"Petzl",         cat:"Helm",      ean:"3342540837076", serial:"SN-PETZ-MET-78432", reg:"12.03.2024", kaufDatum:"2019-03-12", status:"ok",     done:false, receipt:null, teamId:null },
-  { id:"g2", name:"Seil Edelrid Swift 48X",  brand:"Edelrid",       cat:"Seil",      ean:"4052285098001", serial:"",                  reg:"05.01.2024", kaufDatum:"2020-01-05", status:"ok",     done:false, receipt:null, teamId:null },
-  { id:"g3", name:"Karabiner BD 210 Serie",  brand:"Black Diamond", cat:"Karabiner", ean:"793661360728",  serial:"SN-BD210-2023-Q4A", reg:"20.11.2023", kaufDatum:"2023-11-20", status:"recall", done:false, receipt:null, teamId:null },
-  { id:"g4", name:"LVS Mammut Barryvox",     brand:"Mammut",        cat:"LVS-Gerät", ean:"7613357529310", serial:"",                  reg:"02.09.2023", kaufDatum:"2022-09-02", status:"ok",     done:false, receipt:null, teamId:"team1" },
-  { id:"g5", name:"Klettergurt Ortovox Rock",brand:"Ortovox",       cat:"Gurt",      ean:"4251422500067", serial:"",                  reg:"18.06.2023", kaufDatum:"2015-06-18", status:"ok",     done:false, receipt:null, teamId:null },
+  { id:"g1", name:"Helm Petzl Meteor IV",    brand:"Petzl",         cat:"Helm",      ean:"3342540837076", serial:"SN-PETZ-MET-78432", reg:"12.03.2024", kaufDatum:"2019-03-12", status:"ok",     done:false, receipt:null, teamId:null, tourType:"klettern",  impacts:[] },
+  { id:"g2", name:"Seil Edelrid Swift 48X",  brand:"Edelrid",       cat:"Seil",      ean:"4052285098001", serial:"",                  reg:"05.01.2024", kaufDatum:"2020-01-05", status:"ok",     done:false, receipt:null, teamId:null, tourType:"klettern",  impacts:[] },
+  { id:"g3", name:"Karabiner BD 210 Serie",  brand:"Black Diamond", cat:"Karabiner", ean:"793661360728",  serial:"SN-BD210-2023-Q4A", reg:"20.11.2023", kaufDatum:"2023-11-20", status:"recall", done:false, receipt:null, teamId:null, tourType:"klettern",  impacts:[] },
+  { id:"g4", name:"LVS Mammut Barryvox",     brand:"Mammut",        cat:"LVS-Gerät", ean:"7613357529310", serial:"",                  reg:"02.09.2023", kaufDatum:"2022-09-02", status:"ok",     done:false, receipt:null, teamId:"team1",tourType:"skitouren", impacts:[] },
+  { id:"g5", name:"Klettergurt Ortovox Rock",brand:"Ortovox",       cat:"Gurt",      ean:"4251422500067", serial:"",                  reg:"18.06.2023", kaufDatum:"2015-06-18", status:"ok",     done:false, receipt:null, teamId:null, tourType:"hochtour",  impacts:[] },
 ];
 
 function uid()      { return Date.now().toString(36)+Math.random().toString(36).slice(2,5); }
@@ -70,15 +80,9 @@ function expiryColor(s) { return s==="expired"?T.red:s==="critical"?T.orange:s==
 function catIcon(c)  { const m={Helm:"⛑️",Seil:"🪢",Karabiner:"🔗","LVS-Gerät":"📡",Gurt:"🧗",Pickel:"⛏️",Steigeisen:"🦶",Sicherung:"🔒",Rucksack:"🎒"};return m[c]||"🏔️"; }
 function catColor(c) { const m={Helm:T.blue,Seil:T.teal,Karabiner:T.orange,"LVS-Gerät":T.navy,Gurt:T.green,Pickel:T.s700,Steigeisen:T.purple,Sicherung:T.teal,Rucksack:T.orange};return m[c]||T.s500; }
 
-async function sLoad(k, fb=null) {
-  try { const v=localStorage.getItem(k); return v?JSON.parse(v):fb; } catch { return fb; }
-}
-async function sSave(k, v) {
-  try { localStorage.setItem(k, JSON.stringify(v)); } catch {}
-}
-async function sDel(k) {
-  try { localStorage.removeItem(k); } catch {}
-}
+async function sLoad(k,fb=null,shared=false){try{const r=await window.storage.get(k,shared);return r?JSON.parse(r.value):fb;}catch{return fb;}}
+async function sSave(k,v,shared=false){try{await window.storage.set(k,JSON.stringify(v),shared);}catch{}}
+async function sDel(k,shared=false){try{await window.storage.delete(k,shared);}catch{}}
 
 function Icon({n,s=22,c="currentColor"}){
   const p={width:s,height:s,viewBox:"0 0 24 24",fill:"none",stroke:c,strokeWidth:"2",strokeLinecap:"round",strokeLinejoin:"round"};
@@ -126,7 +130,7 @@ function Icon({n,s=22,c="currentColor"}){
 }
 
 function Btn({label,icon,onClick,variant="primary",disabled=false,full=false,small=false}){
-  const ST={primary:{bg:T.teal,fg:T.white,sh:`0 4px 14px ${T.teal}40`},navy:{bg:T.navy,fg:T.white,sh:`0 4px 14px ${T.navy}30`},danger:{bg:T.red,fg:T.white,sh:"none"},ghost:{bg:T.white,fg:T.s500,sh:"none",bd:`1.5px solid ${T.s200}`},purple:{bg:T.purple,fg:T.white,sh:`0 4px 14px ${T.purple}40`}}[variant]||{bg:T.teal,fg:T.white,sh:"none"};
+  const ST={primary:{bg:T.teal,fg:T.white,sh:`0 4px 14px ${T.teal}40`},navy:{bg:T.navy,fg:T.white,sh:`0 4px 14px ${T.navy}30`},danger:{bg:T.red,fg:T.white,sh:"none"},ghost:{bg:T.white,fg:T.s500,sh:"none",bd:`1.5px solid ${T.s200}`},purple:{bg:T.purple,fg:T.white,sh:`0 4px 14px ${T.purple}40`},amber:{bg:T.amber,fg:T.white,sh:"none"}}[variant]||{bg:T.teal,fg:T.white,sh:"none"};
   return <button onClick={onClick} disabled={disabled} onMouseDown={e=>{if(!disabled)e.currentTarget.style.transform="scale(0.97)"}} onMouseUp={e=>{e.currentTarget.style.transform=""}} style={{width:full?"100%":undefined,background:disabled?T.s200:ST.bg,color:disabled?T.s400:ST.fg,border:ST.bd||"none",borderRadius:14,cursor:disabled?"not-allowed":"pointer",padding:small?"8px 14px":"13px 20px",fontSize:small?13:14,fontWeight:700,fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:7,transition:"opacity .15s,transform .1s",boxShadow:disabled?"none":ST.sh}}>{icon&&<Icon n={icon} s={small?14:16} c={disabled?T.s400:ST.fg}/>}{label}</button>;
 }
 
@@ -469,6 +473,64 @@ function TeamScreen({user,gear,onAdd}){
   </div>;
 }
 // ═══ GEAR SCREEN (My/Team/All Toggle) ════════════════════════════════════════
+// ─── STURZ-/SCHLAGPROTOKOLL KOMPONENTE ───────────────────────────────────────
+function ImpactLog({ item, onAddImpact }) {
+  const [showForm, setShowForm] = useState(false);
+  const [note, setNote] = useState("");
+  const impacts = item.impacts || [];
+
+  function addImpact() {
+    if (!note.trim()) return;
+    onAddImpact({ date: todayISO(), note: note.trim(), id: uid() });
+    setNote(""); setShowForm(false);
+  }
+
+  return (
+    <div style={{background:impacts.length>0?T.amberLt:T.s100,borderRadius:14,padding:"12px 14px",border:`1px solid ${impacts.length>0?T.amber+"50":T.s200}`}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:impacts.length>0?10:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:18}}>⚡</span>
+          <div>
+            <p style={{margin:0,fontSize:13,fontWeight:700,color:impacts.length>0?T.amber:T.navy,fontFamily:"'DM Sans',sans-serif"}}>Sturz-/Schlagprotokoll</p>
+            <p style={{margin:0,fontSize:11,color:T.s500,fontFamily:"'DM Sans',sans-serif"}}>{impacts.length===0?"Kein Sturz registriert":`${impacts.length} Ereignis${impacts.length>1?"se":""}`}</p>
+          </div>
+        </div>
+        <button onClick={()=>setShowForm(s=>!s)} style={{background:T.orange,border:"none",borderRadius:10,padding:"6px 12px",color:T.white,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+          + Sturz
+        </button>
+      </div>
+
+      {/* Protokoll-Einträge */}
+      {impacts.map((imp,i)=>(
+        <div key={imp.id||i} style={{background:T.white,borderRadius:10,padding:"8px 12px",marginTop:6,display:"flex",gap:10,alignItems:"flex-start"}}>
+          <span style={{fontSize:16,flexShrink:0}}>⚡</span>
+          <div style={{flex:1}}>
+            <p style={{margin:0,fontSize:12,fontWeight:600,color:T.amber,fontFamily:"'DM Sans',sans-serif"}}>{new Date(imp.date).toLocaleDateString("de-DE")}</p>
+            <p style={{margin:0,fontSize:12,color:T.navy,fontFamily:"'DM Sans',sans-serif"}}>{imp.note}</p>
+          </div>
+        </div>
+      ))}
+
+      {/* Eingabe-Formular */}
+      {showForm && (
+        <div style={{marginTop:10,background:T.white,borderRadius:10,padding:"10px 12px"}}>
+          <p style={{margin:"0 0 8px",fontSize:12,fontWeight:600,color:T.navy,fontFamily:"'DM Sans',sans-serif"}}>Ereignis beschreiben:</p>
+          <textarea value={note} onChange={e=>setNote(e.target.value)}
+            placeholder="z.B. Sturz aus 4m, Karabiner hat Boden getroffen…"
+            style={{width:"100%",boxSizing:"border-box",border:`1.5px solid ${T.s200}`,borderRadius:8,padding:"8px 10px",fontSize:13,fontFamily:"'DM Sans',sans-serif",resize:"none",outline:"none",minHeight:60}} rows={3}/>
+          <div style={{display:"flex",gap:8,marginTop:8}}>
+            <Btn full label="Abbrechen" variant="ghost" small onClick={()=>setShowForm(false)}/>
+            <Btn full label="Speichern" variant="amber" small disabled={!note.trim()} onClick={addImpact}/>
+          </div>
+          <div style={{marginTop:8,background:"#FEF3C7",borderRadius:8,padding:"7px 10px"}}>
+            <p style={{margin:0,fontSize:11,color:T.amber,fontFamily:"'DM Sans',sans-serif"}}>⚠ Artikel nach einem schweren Sturz vom Fachmann prüfen lassen – auch ohne sichtbare Schäden.</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function GearScreen({gear,onAdd,onDelete}){
   const [showScanner,setShowScanner]=useState(false);
   const [scanResult,setScanResult]=useState(null);
@@ -548,6 +610,14 @@ function GearScreen({gear,onAdd,onDelete}){
         <div style={{background:T.s100,borderRadius:14,padding:"4px 16px",marginBottom:14}}>
           {[["EAN",detail.ean||"—"],["Seriennummer",detail.serial||"—"],["Registriert",detail.reg||"—"],["Kaufdatum",detail.kaufDatum?new Date(detail.kaufDatum).toLocaleDateString("de-DE"):"—"],["Status",detail.status==="recall"&&!detail.done?"⚠️ Rückruf aktiv":detail.done?"✅ Erledigt":"✅ OK"]].map(([k,v])=><div key={k} style={{display:"flex",justifyContent:"space-between",padding:"9px 0",borderBottom:`1px solid ${T.s200}`}}><span style={{fontSize:12,color:T.s500,fontFamily:"'DM Sans',sans-serif"}}>{k}</span><span style={{fontSize:12,fontWeight:600,color:T.navy,fontFamily:"'DM Sans',sans-serif"}}>{v}</span></div>)}
         </div>
+        {/* Sturz-/Schlagprotokoll */}
+        <ImpactLog item={detail} onAddImpact={(impact)=>{
+          const updated={...detail,impacts:[...(detail.impacts||[]),impact]};
+          setDetail(updated);
+          onDelete(detail.id);
+          onAdd(updated);
+        }}/>
+        <div style={{height:10}}/>
         {confirmDel?<div style={{background:T.redLt,borderRadius:12,padding:14,textAlign:"center"}}><p style={{margin:"0 0 12px",fontSize:13,fontWeight:600,color:T.red,fontFamily:"'DM Sans',sans-serif"}}>Wirklich entfernen?</p><div style={{display:"flex",gap:8}}><Btn full label="Abbrechen" variant="ghost" onClick={()=>setConfirmDel(false)}/><Btn full label="Entfernen" variant="danger" onClick={()=>{onDelete(detail.id);setDetail(null);setConfirmDel(false);}}/></div></div>:<Btn full variant="ghost" icon="trash" label="Aus Ausrüstung entfernen" onClick={()=>setConfirmDel(true)}/>}
       </div>
     </Sheet>}
@@ -591,6 +661,183 @@ function RecallsScreen({gear,onMarkDone}){
 }
 
 // ═══ HOME SCREEN ══════════════════════════════════════════════════════════════
+// ─── GEAR-GESUNDHEITS-SCORE ──────────────────────────────────────────────────
+function calcHealthScore(gear) {
+  if (!gear.length) return 100;
+  let total = 0;
+  gear.forEach(item => {
+    let score = 100;
+    // Rückruf: schwerwiegend
+    if (item.status === "recall" && !item.done) score -= 40;
+    // Ablaufdatum
+    const exp = expiryInfo(item.kaufDatum, item.cat);
+    if (exp) {
+      if (exp.status === "expired")  score -= 35;
+      else if (exp.status === "critical") score -= 20;
+      else if (exp.status === "warning")  score -= 8;
+    }
+    // Sturz-/Schlagprotokoll
+    const impacts = item.impacts || [];
+    if (impacts.length > 0) {
+      const daysSince = (new Date() - new Date(impacts[impacts.length-1].date)) / (1000*60*60*24);
+      if (daysSince < 30)  score -= 25;
+      else if (daysSince < 365) score -= 10;
+    }
+    total += Math.max(0, score);
+  });
+  return Math.round(total / gear.length);
+}
+
+function HealthScoreRing({ score }) {
+  const color = score >= 80 ? T.green : score >= 60 ? T.amber : T.red;
+  const label = score >= 80 ? "Sehr gut" : score >= 60 ? "Mittel" : "Kritisch";
+  const r = 38, circ = 2 * Math.PI * r;
+  const dash = (score / 100) * circ;
+  return (
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+      <div style={{position:"relative",width:96,height:96}}>
+        <svg width="96" height="96" style={{transform:"rotate(-90deg)"}}>
+          <circle cx="48" cy="48" r={r} fill="none" stroke={T.s200} strokeWidth="7"/>
+          <circle cx="48" cy="48" r={r} fill="none" stroke={color} strokeWidth="7"
+            strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+            style={{transition:"stroke-dasharray 1s ease"}}/>
+        </svg>
+        <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+          <span style={{fontSize:22,fontWeight:800,color,fontFamily:"'DM Serif Display',serif",lineHeight:1}}>{score}</span>
+          <span style={{fontSize:9,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>von 100</span>
+        </div>
+      </div>
+      <span style={{fontSize:12,fontWeight:700,color,fontFamily:"'DM Sans',sans-serif"}}>{label}</span>
+    </div>
+  );
+}
+
+// ─── TOUR-ÜBERSICHT SCREEN ───────────────────────────────────────────────────
+function TourScreen({ gear, onUpdate }) {
+  const [selTour, setSelTour] = useState(null);
+  const [editItem, setEditItem] = useState(null);
+
+  const tourGear = (tourId) => tourId === "alle"
+    ? gear
+    : gear.filter(g => g.tourType === tourId);
+
+  if (selTour) {
+    const items = tourGear(selTour.id);
+    const score = calcHealthScore(items);
+    const tour  = TOUR_TYPES.find(t => t.id === selTour.id);
+    return (
+      <div>
+        {/* Header */}
+        <div style={{background:`linear-gradient(135deg,${tour.color},${tour.color}CC)`,padding:"20px 16px 16px"}}>
+          <button onClick={()=>setSelTour(null)} style={{background:"rgba(255,255,255,.2)",border:"none",borderRadius:8,width:32,height:32,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:12}}>
+            <Icon n="back" s={16} c={T.white}/>
+          </button>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                <span style={{fontSize:28}}>{tour.icon}</span>
+                <h2 style={{margin:0,fontSize:20,fontWeight:700,color:T.white,fontFamily:"'DM Serif Display',serif"}}>{tour.label}</h2>
+              </div>
+              <p style={{margin:0,fontSize:13,color:"rgba(255,255,255,.8)",fontFamily:"'DM Sans',sans-serif"}}>{items.length} Artikel · Setup-Score</p>
+            </div>
+            <HealthScoreRing score={score}/>
+          </div>
+        </div>
+
+        {/* Artikel-Liste */}
+        <div style={{padding:"14px 16px",display:"flex",flexDirection:"column",gap:10}}>
+          {items.length === 0
+            ? <div style={{textAlign:"center",padding:"32px 0"}}>
+                <div style={{fontSize:40,marginBottom:10}}>{tour.icon}</div>
+                <p style={{margin:0,fontSize:14,color:T.s500,fontFamily:"'DM Sans',sans-serif"}}>Noch keine Artikel für {tour.label}</p>
+                <p style={{margin:"6px 0 0",fontSize:12,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>Weise Artikel dieser Tour-Kategorie zu</p>
+              </div>
+            : items.map(item => {
+                const hasImpact = (item.impacts||[]).length > 0;
+                const exp = expiryInfo(item.kaufDatum, item.cat);
+                return (
+                  <div key={item.id} style={{background:T.white,borderRadius:14,padding:"13px 14px",border:item.status==="recall"&&!item.done?`2px solid ${T.red}`:hasImpact?`1.5px solid ${T.amber}`:`1px solid ${T.s200}`,boxShadow:"0 2px 8px rgba(0,0,0,.05)"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:12}}>
+                      <div style={{width:44,height:44,borderRadius:12,background:catColor(item.cat)+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{catIcon(item.cat)}</div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <p style={{margin:"0 0 2px",fontSize:13,fontWeight:700,color:T.navy,fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{item.name}</p>
+                        <p style={{margin:0,fontSize:11,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>{item.brand}{hasImpact?<span style={{color:T.amber}}> · ⚠ Sturz registriert</span>:""}</p>
+                      </div>
+                      <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
+                        {item.status==="recall"&&!item.done
+                          ? <Badge label="Rückruf" color={T.red} bg={T.redLt}/>
+                          : hasImpact
+                          ? <Badge label="Prüfen!" color={T.amber} bg={T.amberLt}/>
+                          : <Badge label="✓ OK" color={T.green} bg={T.greenLt}/>
+                        }
+                      </div>
+                    </div>
+                    {/* Tour-Zuweisung ändern */}
+                    <div style={{marginTop:10,paddingTop:8,borderTop:`1px solid ${T.s100}`,display:"flex",gap:6,flexWrap:"wrap"}}>
+                      {TOUR_TYPES.filter(t=>t.id!=="alle").map(t=>(
+                        <button key={t.id} onClick={()=>onUpdate(item.id,{tourType:t.id})}
+                          style={{padding:"3px 10px",borderRadius:16,border:`1px solid ${item.tourType===t.id?t.color:T.s200}`,background:item.tourType===t.id?t.color+"18":T.s50,fontSize:11,fontWeight:item.tourType===t.id?700:400,color:item.tourType===t.id?t.color:T.s500,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+                          {t.icon} {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
+          }
+        </div>
+      </div>
+    );
+  }
+
+  // Tour-Karten Übersicht
+  return (
+    <div>
+      <div style={{padding:"20px 16px 14px"}}>
+        <h2 style={{margin:"0 0 4px",fontSize:20,fontWeight:700,color:T.navy,fontFamily:"'DM Serif Display',serif"}}>Tour-Übersicht</h2>
+        <p style={{margin:0,fontSize:13,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>Deine Ausrüstung nach Tourentyp</p>
+      </div>
+
+      {/* Gesamt-Score */}
+      <div style={{margin:"0 16px 14px",background:`linear-gradient(135deg,${T.navy},${T.navyMd})`,borderRadius:16,padding:"16px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div>
+          <p style={{margin:"0 0 4px",fontSize:12,color:T.tealLt,fontWeight:700,fontFamily:"'DM Sans',sans-serif",textTransform:"uppercase",letterSpacing:"0.05em"}}>Gesamt-Gesundheitsscore</p>
+          <p style={{margin:0,fontSize:13,color:"rgba(255,255,255,.7)",fontFamily:"'DM Sans',sans-serif"}}>Basierend auf {gear.length} Artikeln</p>
+        </div>
+        <HealthScoreRing score={calcHealthScore(gear)}/>
+      </div>
+
+      {/* Tour-Karten Grid */}
+      <div style={{padding:"0 16px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        {TOUR_TYPES.map(tour => {
+          const items  = tourGear(tour.id);
+          const score  = calcHealthScore(items);
+          const recall = items.filter(g=>g.status==="recall"&&!g.done).length;
+          const impact = items.filter(g=>(g.impacts||[]).length>0).length;
+          return (
+            <div key={tour.id} onClick={()=>setSelTour(tour)}
+              style={{background:T.white,borderRadius:16,padding:"14px",border:`1px solid ${T.s200}`,cursor:"pointer",boxShadow:"0 2px 10px rgba(0,0,0,.06)",position:"relative",overflow:"hidden"}}>
+              {/* Farbstreifen oben */}
+              <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:tour.color,borderRadius:"16px 16px 0 0"}}/>
+              <div style={{fontSize:28,marginBottom:6}}>{tour.icon}</div>
+              <p style={{margin:"0 0 2px",fontSize:13,fontWeight:700,color:T.navy,fontFamily:"'DM Sans',sans-serif"}}>{tour.label}</p>
+              <p style={{margin:"0 0 10px",fontSize:11,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>{items.length} Artikel</p>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div style={{display:"flex",gap:4}}>
+                  {recall>0 && <Badge label={`${recall} Rückruf`} color={T.red} bg={T.redLt}/>}
+                  {impact>0 && <Badge label={`${impact} Sturz`} color={T.amber} bg={T.amberLt}/>}
+                </div>
+                <span style={{fontSize:16,fontWeight:800,color:score>=80?T.green:score>=60?T.amber:T.red,fontFamily:"'DM Serif Display',serif"}}>{score}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{height:8}}/>
+    </div>
+  );
+}
+
 function HomeScreen({user,gear,onNav,onSimRecall,isOffline}){
   const openRecalls=gear.filter(g=>g.status==="recall"&&!g.done);
   const expiring=gear.filter(g=>{const e=expiryInfo(g.kaufDatum,g.cat);return e&&(e.status==="critical"||e.status==="expired");});
@@ -612,6 +859,17 @@ function HomeScreen({user,gear,onNav,onSimRecall,isOffline}){
         <span style={{fontSize:11.5,color:T.s500,fontFamily:"'DM Sans',sans-serif"}}>{k.l}</span>
       </div>)}
     </div>
+
+    {/* Gesundheits-Score Kachel */}
+    <div onClick={()=>onNav("tour")} style={{margin:"0 16px",background:T.white,borderRadius:16,padding:"14px 16px",border:`1px solid ${T.s200}`,cursor:"pointer",display:"flex",alignItems:"center",gap:14,boxShadow:"0 2px 10px rgba(0,0,0,.06)"}}>
+      <HealthScoreRing score={calcHealthScore(gear)}/>
+      <div style={{flex:1}}>
+        <p style={{margin:"0 0 3px",fontSize:14,fontWeight:700,color:T.navy,fontFamily:"'DM Sans',sans-serif"}}>Gear-Gesundheitsscore</p>
+        <p style={{margin:"0 0 8px",fontSize:12,color:T.s500,fontFamily:"'DM Sans',sans-serif"}}>Basierend auf Alter, Rückrufen & Stürzen</p>
+        <span style={{fontSize:12,color:T.teal,fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>Tour-Übersicht anzeigen →</span>
+      </div>
+    </div>
+
     <div style={{padding:"0 16px"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}><h3 style={{margin:0,fontSize:15,fontWeight:700,color:T.navy,fontFamily:"'DM Sans',sans-serif"}}>Zuletzt hinzugefügt</h3><button onClick={()=>onNav("gear")} style={{background:"none",border:"none",color:T.teal,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Alle →</button></div>
       {gear.length===0?<div style={{background:T.s100,borderRadius:14,padding:"24px 16px",textAlign:"center"}}><div style={{fontSize:36,marginBottom:8}}>🏔️</div><p style={{margin:"0 0 10px",fontSize:13,color:T.s500,fontFamily:"'DM Sans',sans-serif"}}>Noch keine Ausrüstung registriert</p><Btn label="Ersten Artikel scannen" icon="camera" variant="teal" small onClick={()=>onNav("gear")}/></div>:recent.map(item=>{const exp=expiryInfo(item.kaufDatum,item.cat);return <div key={item.id} style={{background:T.white,borderRadius:12,padding:"12px 14px",display:"flex",alignItems:"center",gap:12,boxShadow:"0 1px 6px rgba(0,0,0,.06)",border:item.status==="recall"&&!item.done?`1.5px solid ${T.red}`:exp&&exp.status!=="ok"?`1.5px solid ${expiryColor(exp.status)}`:`1px solid ${T.s200}`,marginBottom:8}}>
@@ -1044,7 +1302,7 @@ export default function AlpineRecallApp(){
     {id:"home",   label:"Home",    icon:"home"                        },
     {id:"gear",   label:"Gear",    icon:"gear"                        },
     {id:"recalls",label:"Rückrufe",icon:"bell",  badge:openRecalls    },
-    {id:"expiry", label:"Ablauf",  icon:"clock", badge:expiringCount  },
+    {id:"tour",   label:"Touren",  icon:"mountain",badge:expiringCount>0||openRecalls>0?0:0},
     {id:"team",   label:"Team",    icon:"users"                       },
     {id:"profile",label:"Profil",  icon:"user"                        },
   ];
@@ -1164,6 +1422,7 @@ export default function AlpineRecallApp(){
             {tab==="gear"    && <GearScreen    gear={gear} onAdd={addItem} onDelete={deleteItem}/>}
             {tab==="recalls" && <RecallsScreen gear={gear} onMarkDone={markDone}/>}
             {tab==="expiry"  && <ExpiryScreen  gear={gear}/>}
+            {tab==="tour"    && <TourScreen gear={gear} onUpdate={(id,changes)=>saveGear(gear.map(g=>g.id===id?{...g,...changes}:g))}/>}
             {tab==="team"    && <TeamScreen    user={user} gear={gear} onAdd={addItem}/>}
             {tab==="profile" && <ProfileScreen user={user} gear={gear} onLogout={logout} isOffline={isOffline} lastSync={lastSync} onOpenGPSR={()=>setShowGPSR(true)}/>}
             {/* Abstand am Ende – Inhalt nicht hinter Nav-Bar */}
