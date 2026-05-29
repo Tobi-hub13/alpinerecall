@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+
+  <!-- ── Viewport: kein Zoom, Safe Areas für iPhone-Notch ── -->
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, minimum-scale=1,
+                 maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+
+  <!-- ── PWA / Homescreen ── -->
+  <meta name="apple-mobile-web-app-capable"          content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title"            content="AlpineRecall" />
+  <meta name="mobile-web-app-capable"                content="yes" />
+  <meta name="application-name"                      content="AlpineRecall" />
+
+  <!-- ── Theme-Farbe (Browser-Statusleiste) ── -->
+  <meta name="theme-color" content="#0D9488" />
+  <meta name="msapplication-navbutton-color" content="#0D9488" />
+
+  <!-- ── Icons ── -->
+  <link rel="icon"             type="image/png" href="%PUBLIC_URL%/icons/icon-192.png" />
+  <link rel="apple-touch-icon"                  href="%PUBLIC_URL%/icons/icon-192.png" />
+  <link rel="apple-touch-icon" sizes="192x192"  href="%PUBLIC_URL%/icons/icon-192.png" />
+  <link rel="apple-touch-icon" sizes="512x512"  href="%PUBLIC_URL%/icons/icon-512.png" />
+
+  <!-- ── Manifest ── -->
+  <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+
+  <!-- ── Basis-Styles: kein Zoom-Flackern, kein Tap-Highlight ── -->
+  <style>
+    * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+    html, body, #root {
+      margin: 0; padding: 0;
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #1A2B4A;   /* Ladefarbe = Navy, wirkt nativer */
+    }
+    input, select, textarea { font-size: 16px; } /* verhindert iOS Auto-Zoom */
+    ::-webkit-scrollbar { display: none; }
+  </style>
+
+  <title>AlpineRecall</title>
+</head>
+<body>
+  <noscript>AlpineRecall benötigt JavaScript.</noscript>
+  <div id="root"></div>
+
+  <!-- ── Service Worker registrieren ── -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').then(reg => {
+          console.log('SW registriert:', reg.scope);
+        }).catch(err => {
+          console.warn('SW Fehler:', err);
+        });
+      });
+    }
+  </script>
+</body>
+</html>
