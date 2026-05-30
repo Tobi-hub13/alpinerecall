@@ -80,9 +80,21 @@ function expiryColor(s) { return s==="expired"?T.red:s==="critical"?T.orange:s==
 function catIcon(c)  { const m={Helm:"⛑️",Seil:"🪢",Karabiner:"🔗","LVS-Gerät":"📡",Gurt:"🧗",Pickel:"⛏️",Steigeisen:"🦶",Sicherung:"🔒",Rucksack:"🎒"};return m[c]||"🏔️"; }
 function catColor(c) { const m={Helm:T.blue,Seil:T.teal,Karabiner:T.orange,"LVS-Gerät":T.navy,Gurt:T.green,Pickel:T.s700,Steigeisen:T.purple,Sicherung:T.teal,Rucksack:T.orange};return m[c]||T.s500; }
 
-async function sLoad(k,fb=null,shared=false){try{const r=await window.storage.get(k,shared);return r?JSON.parse(r.value):fb;}catch{return fb;}}
-async function sSave(k,v,shared=false){try{await window.storage.set(k,JSON.stringify(v),shared);}catch{}}
-async function sDel(k,shared=false){try{await window.storage.delete(k,shared);}catch{}}
+// Storage – localStorage für echte App, window.storage als Fallback für Claude-Demo
+function sLoad(k, fb=null) {
+  try {
+    const v = localStorage.getItem(k);
+    return Promise.resolve(v !== null ? JSON.parse(v) : fb);
+  } catch { return Promise.resolve(fb); }
+}
+function sSave(k, v) {
+  try { localStorage.setItem(k, JSON.stringify(v)); } catch {}
+  return Promise.resolve();
+}
+function sDel(k) {
+  try { localStorage.removeItem(k); } catch {}
+  return Promise.resolve();
+}
 
 function Icon({n,s=22,c="currentColor"}){
   const p={width:s,height:s,viewBox:"0 0 24 24",fill:"none",stroke:c,strokeWidth:"2",strokeLinecap:"round",strokeLinejoin:"round"};
@@ -966,17 +978,16 @@ function ProfileScreen({user,gear,onLogout,isOffline,lastSync,onOpenGPSR}){
   const [notifOn,setNotifOn]=useState(true);
   const [bioActive,setBioActive]=useState(false);
   const [bioMsg,setBioMsg]=useState("");
-  useEffect(()=>{(async()=>{const c=await sLoad("biometric-cred");const a=await sLoad("biometric-active");setBioActive(!!(c&&a));})();},[]);
+  useEffect(()=>{sLoad("biometric-cred").then(c=>setBioActive(!!c));},[]);
   async function toggleBio(){
     try{
-      if(bioActive){ await sDel("biometric-cred"); await sDel("biometric-active"); setBioActive(false); setBioMsg("Biometrie deaktiviert."); }
+      if(bioActive){ await sDel("biometric-cred"); setBioActive(false); setBioMsg("Biometrie deaktiviert."); }
       else{
         if(!window.PublicKeyCredential){ setBioMsg("Gerät unterstützt keine Biometrie."); return; }
         const challenge=crypto.getRandomValues(new Uint8Array(32));
         const cred=await navigator.credentials.create({publicKey:{challenge,rp:{name:"AlpineRecall",id:window.location.hostname},user:{id:new TextEncoder().encode(user.email),name:user.email,displayName:user.name},pubKeyCredParams:[{alg:-7,type:"public-key"},{alg:-257,type:"public-key"}],authenticatorSelection:{authenticatorAttachment:"platform",userVerification:"required"},timeout:60000}});
         const credId=btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
         await sSave("biometric-cred",{credId,userId:user.email});
-        await sSave("biometric-active",true);
         setBioActive(true); setBioMsg("Face ID / Touch ID aktiviert! ✓");
       }
     }catch(e){ setBioMsg(e.name==="NotAllowedError"?"Abgebrochen.":"Fehler: "+e.message); }
@@ -1077,7 +1088,6 @@ function FaceIDSetupModal({ user, onDone }) {
     try {
       const credId = await bioRegister(user);
       await sSave("biometric-cred", { credId, userId: user.email });
-      await sSave("biometric-active", true);
       setPhase("success");
       setTimeout(onDone, 1800);
     } catch(e) {
@@ -1247,25 +1257,34 @@ function AuthScreen({ onLogin }) {
     setBioLoading(true); setBioMsg("");
     try {
       const cred = await sLoad("biometric-cred");
-      if (!cred) { setBioMsg("Face ID noch nicht eingerichtet."); setBioLoading(false); return; }
+      if (!cred) { setBioMsg("Noch nicht eingerichtet."); setBioLoading(false); return; }
+
+      // WebAuthn Verifikation
       await bioVerify(cred.credId);
-      const u = await sLoad("auth-user");
-      if (u) { setBioLoading(false); onLogin(u); return; }
-      // auth-user weg aber cred da → User aus registered-users laden
-      const registered = await sLoad("registered-users", {}) || {};
-      const regUser    = registered[cred.userId];
-      if (regUser) {
-        const d = { email:regUser.email, name:regUser.name, initials:regUser.initials };
-        await sSave("auth-user", d);
-        setBioLoading(false);
-        onLogin(d);
-        return;
+
+      // User-Daten wiederherstellen (auch wenn auth-user gelöscht wurde)
+      let u = await sLoad("auth-user");
+      if (!u) {
+        // Aus registered-users rekonstruieren
+        const registered = await sLoad("registered-users", {}) || {};
+        const demo       = DEMO_USERS[cred.userId];
+        const regUser    = registered[cred.userId];
+        if (demo)    u = { email:cred.userId, name:demo.name, initials:demo.initials };
+        else if (regUser) u = { email:regUser.email, name:regUser.name, initials:regUser.initials };
       }
-      setBioMsg("Sitzung abgelaufen – bitte mit Passwort anmelden.");
+      if (u) {
+        await sSave("auth-user", u);
+        await sSave("last-login-email", u.email);
+        setBioLoading(false);
+        onLogin(u);
+      } else {
+        setBioMsg("Account nicht gefunden – bitte mit Passwort anmelden.");
+        setBioLoading(false);
+      }
     } catch(e) {
-      if (e.name !== "NotAllowedError") setBioMsg("Biometrie fehlgeschlagen.");
+      setBioMsg(e.name === "NotAllowedError" ? "Face ID abgebrochen." : "Biometrie nicht verfügbar.");
+      setBioLoading(false);
     }
-    setBioLoading(false);
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
