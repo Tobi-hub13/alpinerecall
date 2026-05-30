@@ -966,16 +966,17 @@ function ProfileScreen({user,gear,onLogout,isOffline,lastSync,onOpenGPSR}){
   const [notifOn,setNotifOn]=useState(true);
   const [bioActive,setBioActive]=useState(false);
   const [bioMsg,setBioMsg]=useState("");
-  useEffect(()=>{sLoad("biometric-cred").then(v=>setBioActive(!!v));},[]);
+  useEffect(()=>{(async()=>{const c=await sLoad("biometric-cred");const a=await sLoad("biometric-active");setBioActive(!!(c&&a));})();},[]);
   async function toggleBio(){
     try{
-      if(bioActive){ await sDel("biometric-cred"); setBioActive(false); setBioMsg("Biometrie deaktiviert."); }
+      if(bioActive){ await sDel("biometric-cred"); await sDel("biometric-active"); setBioActive(false); setBioMsg("Biometrie deaktiviert."); }
       else{
         if(!window.PublicKeyCredential){ setBioMsg("Gerät unterstützt keine Biometrie."); return; }
         const challenge=crypto.getRandomValues(new Uint8Array(32));
         const cred=await navigator.credentials.create({publicKey:{challenge,rp:{name:"AlpineRecall",id:window.location.hostname},user:{id:new TextEncoder().encode(user.email),name:user.email,displayName:user.name},pubKeyCredParams:[{alg:-7,type:"public-key"},{alg:-257,type:"public-key"}],authenticatorSelection:{authenticatorAttachment:"platform",userVerification:"required"},timeout:60000}});
         const credId=btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
         await sSave("biometric-cred",{credId,userId:user.email});
+        await sSave("biometric-active",true);
         setBioActive(true); setBioMsg("Face ID / Touch ID aktiviert! ✓");
       }
     }catch(e){ setBioMsg(e.name==="NotAllowedError"?"Abgebrochen.":"Fehler: "+e.message); }
@@ -1032,173 +1033,331 @@ function ProfileScreen({user,gear,onLogout,isOffline,lastSync,onOpenGPSR}){
   </div>;
 }
 
-// ═══ AUTH SCREEN (persistente Registrierung) ══════════════════════════════════
-// ── Einmaliges Face-ID Setup-Modal nach Login ────────────────────────────────
-function BiometricSetupModal({ user, onDone }) {
-  const [loading, setLoading] = useState(false);
-  const [done,    setDone]    = useState(false);
-  const [err,     setErr]     = useState("");
+// ═══ AUTH SYSTEM – komplett neu ═══════════════════════════════════════════════
 
-  async function setup() {
-    setLoading(true); setErr("");
+// ── Biometrie-Hilfsfunktionen ─────────────────────────────────────────────────
+async function bioIsAvailable() {
+  if (!window.PublicKeyCredential) return false;
+  try { return await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable(); }
+  catch { return false; }
+}
+
+async function bioRegister(user) {
+  const challenge = crypto.getRandomValues(new Uint8Array(32));
+  const cred = await navigator.credentials.create({ publicKey: {
+    challenge,
+    rp: { name:"AlpineRecall", id:window.location.hostname },
+    user: { id:new TextEncoder().encode(user.email), name:user.email, displayName:user.name },
+    pubKeyCredParams: [{ alg:-7, type:"public-key" }, { alg:-257, type:"public-key" }],
+    authenticatorSelection: { authenticatorAttachment:"platform", userVerification:"required" },
+    timeout: 60000,
+  }});
+  return btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
+}
+
+async function bioVerify(credId) {
+  const challenge = crypto.getRandomValues(new Uint8Array(32));
+  const rawId = Uint8Array.from(atob(credId), c => c.charCodeAt(0));
+  await navigator.credentials.get({ publicKey: {
+    challenge,
+    allowCredentials: [{ type:"public-key", id:rawId, transports:["internal"] }],
+    userVerification: "required",
+    timeout: 60000,
+  }});
+  return true;
+}
+
+// ── Face ID Setup Modal (nach Registrierung) ──────────────────────────────────
+function FaceIDSetupModal({ user, onDone }) {
+  const [phase,   setPhase]   = useState("ask");   // ask | loading | success | error
+  const [errMsg,  setErrMsg]  = useState("");
+
+  async function activate() {
+    setPhase("loading");
     try {
-      if (!window.PublicKeyCredential) { onDone(); return; }
-      const challenge = crypto.getRandomValues(new Uint8Array(32));
-      const cred = await navigator.credentials.create({ publicKey: {
-        challenge,
-        rp: { name:"AlpineRecall", id:window.location.hostname },
-        user: { id:new TextEncoder().encode(user.email), name:user.email, displayName:user.name },
-        pubKeyCredParams: [{alg:-7,type:"public-key"},{alg:-257,type:"public-key"}],
-        authenticatorSelection: { authenticatorAttachment:"platform", userVerification:"required" },
-        timeout: 60000,
-      }});
-      const credId = btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
-      await sSave("biometric-cred", { credId, userId:user.email });
-      setDone(true);
-      setTimeout(onDone, 1500);
+      const credId = await bioRegister(user);
+      await sSave("biometric-cred", { credId, userId: user.email });
+      await sSave("biometric-active", true);
+      setPhase("success");
+      setTimeout(onDone, 1800);
     } catch(e) {
-      setErr(e.name==="NotAllowedError" ? "Abgebrochen." : "Nicht verfügbar.");
-      setTimeout(onDone, 2000);
+      setErrMsg(e.name === "NotAllowedError" ? "Abgebrochen – du kannst es jederzeit in den Einstellungen nachholen." : "Auf diesem Gerät nicht verfügbar.");
+      setPhase("error");
+      setTimeout(onDone, 3000);
     }
-    setLoading(false);
   }
 
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:500,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
-      <div style={{background:T.white,borderRadius:"24px 24px 0 0",width:"100%",maxWidth:390,padding:"28px 24px calc(28px + env(safe-area-inset-bottom,0px))",animation:"ar-slideUp .35s ease"}}>
-        <div style={{textAlign:"center",marginBottom:24}}>
-          <div style={{fontSize:52,marginBottom:12}}>{done ? "✅" : "🔐"}</div>
-          <h3 style={{margin:"0 0 8px",fontSize:20,fontWeight:700,color:T.navy,fontFamily:"'DM Serif Display',serif"}}>
-            {done ? "Eingerichtet!" : "Schneller anmelden"}
-          </h3>
-          <p style={{margin:0,fontSize:13,color:T.s500,lineHeight:1.6,fontFamily:"'DM Sans',sans-serif"}}>
-            {done
-              ? "Face ID / Touch ID ist jetzt aktiv. Du kannst dich ab sofort damit anmelden."
-              : "Möchtest du dich beim nächsten Mal mit Face ID oder Touch ID anmelden – ohne Passwort?"}
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:600,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+      <div style={{background:T.white,borderRadius:"24px 24px 0 0",width:"100%",maxWidth:390,padding:"32px 24px calc(32px + env(safe-area-inset-bottom,0px))",animation:"ar-slideUp .35s ease",textAlign:"center"}}>
+
+        {phase === "ask" && <>
+          <div style={{fontSize:56,marginBottom:16}}>🔐</div>
+          <h3 style={{margin:"0 0 10px",fontSize:22,fontWeight:700,color:T.navy,fontFamily:"'DM Serif Display',serif"}}>Schneller anmelden</h3>
+          <p style={{margin:"0 0 24px",fontSize:14,color:T.s500,lineHeight:1.7,fontFamily:"'DM Sans',sans-serif"}}>
+            Möchtest du dich beim nächsten Öffnen der App mit <strong>Face ID</strong> oder <strong>Touch ID</strong> anmelden – ohne Passwort?
           </p>
-          {err && <p style={{margin:"8px 0 0",fontSize:12,color:T.amber,fontFamily:"'DM Sans',sans-serif"}}>{err}</p>}
-        </div>
-        {!done && (
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            {loading
-              ? <div style={{padding:"8px 0"}}><Spinner/></div>
-              : <>
-                  <Btn full label="Face ID / Touch ID aktivieren" icon="fingerprint" variant="navy" onClick={setup}/>
-                  <Btn full label="Jetzt nicht" variant="ghost" onClick={onDone}/>
-                  <p style={{margin:0,textAlign:"center",fontSize:11,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>Du kannst das jederzeit in den Profil-Einstellungen aktivieren.</p>
-                </>
-            }
+            <button onClick={activate} style={{width:"100%",background:`linear-gradient(135deg,${T.navy},${T.navyMd})`,border:"none",borderRadius:14,padding:"15px",color:T.white,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 10a2 2 0 01-2 2C6.48 12 4 9.76 4 7 4 4.24 6.48 2 12 2s8 2.24 8 5c0 1-.39 2.04-1.08 2.79"/><path d="M12 20c0-4.41 3.59-8 8-8"/><path d="M12 20c0-4.41-3.59-8-8-8"/><path d="M12 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2"/></svg>
+              Face ID / Touch ID aktivieren
+            </button>
+            <button onClick={onDone} style={{width:"100%",background:"none",border:`1.5px solid ${T.s200}`,borderRadius:14,padding:"13px",color:T.s500,fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+              Jetzt nicht
+            </button>
+            <p style={{margin:0,fontSize:11,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>Du kannst das jederzeit unter Profil → Einstellungen nachholen.</p>
           </div>
-        )}
+        </>}
+
+        {phase === "loading" && <>
+          <div style={{fontSize:56,marginBottom:16}}>🔐</div>
+          <Spinner/>
+          <p style={{margin:"16px 0 0",fontSize:14,color:T.navy,fontFamily:"'DM Sans',sans-serif"}}>Biometrie wird eingerichtet…</p>
+        </>}
+
+        {phase === "success" && <>
+          <div style={{fontSize:56,marginBottom:16,animation:"ar-popIn .4s ease"}}>✅</div>
+          <h3 style={{margin:"0 0 8px",fontSize:22,fontWeight:700,color:T.green,fontFamily:"'DM Serif Display',serif"}}>Aktiviert!</h3>
+          <p style={{margin:0,fontSize:14,color:T.s500,fontFamily:"'DM Sans',sans-serif"}}>Du kannst dich ab sofort mit Face ID / Touch ID anmelden.</p>
+        </>}
+
+        {phase === "error" && <>
+          <div style={{fontSize:56,marginBottom:16}}>⚠️</div>
+          <p style={{margin:0,fontSize:13,color:T.amber,fontFamily:"'DM Sans',sans-serif"}}>{errMsg}</p>
+        </>}
       </div>
     </div>
   );
 }
 
-function AuthScreen({onLogin}){
-  const [tab,setTab]=useState("login");
-  const [email,setEmail]=useState(""); const [pw,setPw]=useState(""); const [pw2,setPw2]=useState(""); const [name,setName]=useState("");
-  const [err,setErr]=useState({}); const [loading,setLoading]=useState(false);
-  const [mounted,setMounted]=useState(false);
-  useEffect(()=>{setTimeout(()=>setMounted(true),80);},[]);
-  function validate(){const e={};if(!email.includes("@"))e.email="Gültige E-Mail erforderlich";if(pw.length<6)e.pw="Mindestens 6 Zeichen";if(tab==="register"){if(!name.trim())e.name="Name erforderlich";if(pw!==pw2)e.pw2="Passwörter stimmen nicht überein";}setErr(e);return Object.keys(e).length===0;}
-  async function submit(){
-    if(!validate())return;setLoading(true);await new Promise(r=>setTimeout(r,800));
-    const emailLow=email.toLowerCase().trim();
-    if(tab==="login"){
-      const demo=DEMO_USERS[emailLow];
-      if(demo&&demo.pw===pw){const d={email:emailLow,name:demo.name,initials:demo.initials};await sSave("auth-user",d);onLogin(d);return;}
-      const registered=await sLoad("registered-users",{})||{};
-      const regUser=registered[emailLow];
-      if(regUser&&regUser.pw===pw){const d={email:emailLow,name:regUser.name,initials:regUser.initials};await sSave("auth-user",d);onLogin(d);return;}
-      if(!demo&&!regUser)setErr({email:"E-Mail nicht gefunden – bitte zuerst registrieren"});
-      else setErr({pw:"Falsches Passwort"});
-    } else {
-      const initials=name.trim().split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2)||"??";
-      const registered=await sLoad("registered-users",{})||{};
-      if(registered[emailLow]){setErr({email:"E-Mail bereits registriert – bitte anmelden"});setLoading(false);return;}
-      registered[emailLow]={email:emailLow,name:name.trim(),initials,pw};
-      await sSave("registered-users",registered);
-      const d={email:emailLow,name:name.trim(),initials};await sSave("auth-user",d);onLogin(d);return;
-    }
-    setLoading(false);
-  }
-  return <div style={{minHeight:"100%",display:"flex",flexDirection:"column",background:`linear-gradient(160deg,${T.navy} 0%,${T.navyMd} 45%,${T.tealDk} 100%)`,opacity:mounted?1:0,transform:mounted?"translateY(0)":"translateY(16px)",transition:"all .5s cubic-bezier(.34,1.56,.64,1)"}}>
-    <div style={{padding:"52px 32px 28px",textAlign:"center"}}>
-      <div style={{width:64,height:64,background:`linear-gradient(135deg,${T.teal},${T.tealDk})`,borderRadius:20,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",boxShadow:`0 8px 32px ${T.teal}50`}}><Icon n="mountain" s={30} c={T.white}/></div>
-      <h1 style={{margin:"0 0 6px",fontSize:26,fontWeight:700,color:T.white,fontFamily:"'DM Serif Display',serif"}}>AlpineRecall</h1>
-      <p style={{margin:0,fontSize:13,color:"#93C5FD",fontFamily:"'DM Sans',sans-serif"}}>Dein digitaler Schutzengel für Bergsport-Ausrüstung</p>
-    </div>
-    <div style={{flex:1,background:T.white,borderRadius:"28px 28px 0 0",padding:"24px 24px 36px"}}>
-      <div style={{display:"flex",background:T.s100,borderRadius:14,padding:4,marginBottom:20}}>{[["login","Anmelden"],["register","Registrieren"]].map(([k,l])=><button key={k} onClick={()=>{setTab(k);setErr({});}} style={{flex:1,border:"none",borderRadius:11,padding:"10px",background:tab===k?T.white:"transparent",color:tab===k?T.navy:T.s400,fontWeight:tab===k?700:500,fontSize:14,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",boxShadow:tab===k?"0 2px 8px rgba(0,0,0,.08)":"none",transition:"all .2s"}}>{l}</button>)}</div>
-      {tab==="register"&&<FInput label="Vollständiger Name" value={name} onChange={e=>setName(e.target.value)} placeholder="Max Mustermann" icon="user" error={err.name} autoFocus/>}
-      <FInput label="E-Mail-Adresse" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@beispiel.de" icon="mail" error={err.email} autoFocus={tab==="login"}/>
-      <FInput label="Passwort" type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder={tab==="register"?"Mindestens 6 Zeichen":"Passwort eingeben"} icon="lock" error={err.pw}/>
-      {tab==="register"&&<FInput label="Passwort wiederholen" type="password" value={pw2} onChange={e=>setPw2(e.target.value)} placeholder="Passwort bestätigen" icon="lock" error={err.pw2}/>}
-      {tab==="login"&&<div style={{background:T.blueLt,border:`1px solid ${T.blue}30`,borderRadius:10,padding:"9px 13px",marginBottom:14}}><p style={{margin:0,fontSize:12,color:T.blue,fontFamily:"'DM Sans',sans-serif"}}><strong>Demo:</strong> max@dav.de · Passwort: demo1234</p></div>}
-      {loading?<div style={{padding:"12px 0"}}><Spinner/></div>:<Btn full label={tab==="login"?"Anmelden":"Konto erstellen"} variant="navy" onClick={submit}/>}
-      {tab==="register"&&<p style={{margin:"10px 0 0",textAlign:"center",fontSize:12,color:T.teal,fontFamily:"'DM Sans',sans-serif"}}>✓ Nach der Registrierung kannst du dich jederzeit mit E-Mail + Passwort anmelden.</p>}
+// ── Haupt-Auth-Screen ─────────────────────────────────────────────────────────
+function AuthScreen({ onLogin }) {
+  // Erkenne ob User bereits registriert ist
+  const [phase, setPhase]       = useState("checking");  // checking | firstTime | login | register
+  const [savedEmail, setSavedEmail] = useState("");
+  const [hasBioCred, setHasBioCred] = useState(false);
+  const [bioAvail,   setBioAvail]   = useState(false);
 
-      {/* ── Face ID / Touch ID Button ── */}
-      {tab==="login"&&<>
-        <div style={{display:"flex",alignItems:"center",gap:10,margin:"14px 0"}}>
-          <div style={{flex:1,height:1,background:T.s200}}/>
-          <span style={{fontSize:12,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>oder schneller anmelden</span>
-          <div style={{flex:1,height:1,background:T.s200}}/>
-        </div>
-        <BiometricLoginButton onLogin={onLogin}/>
-      </>}
+  // Felder
+  const [name,  setName]  = useState("");
+  const [email, setEmail] = useState("");
+  const [pw,    setPw]    = useState("");
+  const [pw2,   setPw2]   = useState("");
+  const [err,   setErr]   = useState({});
+  const [loading, setLoading] = useState(false);
+  const [bioLoading, setBioLoading] = useState(false);
+  const [bioMsg, setBioMsg] = useState("");
+  const [mounted, setMounted] = useState(false);
 
-      <p style={{marginTop:12,textAlign:"center",fontSize:11,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>Daten werden nach EU-DSGVO verarbeitet und nie verkauft.</p>
-    </div>
-  </div>;
-}
+  useEffect(() => {
+    setTimeout(() => setMounted(true), 80);
+    (async () => {
+      // Prüfe ob schon registriert
+      const registered = await sLoad("registered-users", {}) || {};
+      const lastEmail  = await sLoad("last-login-email", "");
+      const cred       = await sLoad("biometric-cred");
+      const avail      = await bioIsAvailable();
 
-// ── Biometrischer Login (WebAuthn / Face ID / Touch ID) ──────────────────────
-function BiometricLoginButton({onLogin}){
-  const [avail,setAvail]=useState(false);
-  const [loading,setLoading]=useState(false);
-  const [msg,setMsg]=useState("");
+      // Demo-User zählen als "registriert"
+      const allEmails = [...Object.keys(registered), ...Object.keys(DEMO_USERS)];
+      const hasRegistered = allEmails.length > Object.keys(DEMO_USERS).length || lastEmail;
 
-  useEffect(()=>{
-    if(window.PublicKeyCredential){
-      window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
-        .then(v=>setAvail(v)).catch(()=>setAvail(false));
-    }
-  },[]);
+      setSavedEmail(lastEmail || "");
+      setHasBioCred(!!cred);
+      setBioAvail(avail);
 
-  async function tryBiometric(){
-    setLoading(true); setMsg("");
-    try {
-      const credRaw = await sLoad("biometric-cred");
-      if(!credRaw){ setMsg("Noch nicht eingerichtet – erst per E-Mail anmelden, dann in Profil aktivieren."); setLoading(false); return; }
-      const challenge = crypto.getRandomValues(new Uint8Array(32));
-      const rawId = Uint8Array.from(atob(credRaw.credId), c=>c.charCodeAt(0));
-      await navigator.credentials.get({ publicKey:{ challenge, allowCredentials:[{type:"public-key",id:rawId,transports:["internal"]}], userVerification:"required", timeout:60000 }});
-      const u = await sLoad("auth-user");
-      if(u) onLogin(u);
-      else setMsg("Sitzung abgelaufen – bitte mit E-Mail anmelden.");
-    } catch(e){ setMsg(e.name==="NotAllowedError"?"Biometrie abgebrochen.":"Biometrie nicht verfügbar."); }
-    setLoading(false);
-  }
-
-  if(!avail) return null;
-  return <div>
-    <button onClick={tryBiometric} disabled={loading} style={{width:"100%",background:T.s100,border:`1.5px solid ${T.s200}`,borderRadius:14,padding:"13px",display:"flex",alignItems:"center",justifyContent:"center",gap:10,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"background .2s"}}
-      onMouseEnter={e=>e.currentTarget.style.background=T.tealLt}
-      onMouseLeave={e=>e.currentTarget.style.background=T.s100}>
-      {loading
-        ? <Spinner size={20} color={T.teal}/>
-        : <>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.navy} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 10a2 2 0 01-2 2C6.48 12 4 9.76 4 7 4 4.24 6.48 2 12 2s8 2.24 8 5c0 1-.39 2.04-1.08 2.79"/><path d="M12 20c0-4.41 3.59-8 8-8"/><path d="M12 20c0-4.41-3.59-8-8-8"/></svg>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.navy} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
-            <span style={{fontSize:14,fontWeight:600,color:T.navy}}>Mit Face ID / Touch ID</span>
-          </>
+      if (!hasRegistered) {
+        setPhase("firstTime");   // Noch kein eigener Account → Registrierung zeigen
+      } else {
+        setEmail(lastEmail || "");
+        setPhase("login");
       }
-    </button>
-    {msg&&<p style={{margin:"8px 0 0",fontSize:12,color:T.amber,textAlign:"center",fontFamily:"'DM Sans',sans-serif"}}>{msg}</p>}
-  </div>;
+    })();
+  }, []);
+
+  // ── Registrierung ──────────────────────────────────────────────────────────
+  async function doRegister() {
+    const e = {};
+    if (!name.trim())          e.name  = "Name erforderlich";
+    if (!email.includes("@"))  e.email = "Gültige E-Mail erforderlich";
+    if (pw.length < 6)         e.pw    = "Mindestens 6 Zeichen";
+    if (pw !== pw2)            e.pw2   = "Passwörter stimmen nicht überein";
+    setErr(e);
+    if (Object.keys(e).length) return;
+
+    setLoading(true);
+    await new Promise(r => setTimeout(r, 700));
+    const emailLow  = email.toLowerCase().trim();
+    const initials  = name.trim().split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2) || "??";
+    const registered = await sLoad("registered-users", {}) || {};
+
+    if (registered[emailLow]) {
+      setErr({ email:"E-Mail bereits registriert" });
+      setLoading(false);
+      return;
+    }
+
+    registered[emailLow] = { email:emailLow, name:name.trim(), initials, pw };
+    await sSave("registered-users", registered);
+    await sSave("last-login-email", emailLow);
+
+    const userData = { email:emailLow, name:name.trim(), initials };
+    await sSave("auth-user", userData);
+    setLoading(false);
+    onLogin(userData);
+  }
+
+  // ── Login mit E-Mail + Passwort ───────────────────────────────────────────
+  async function doLogin() {
+    const e = {};
+    if (!email.includes("@")) e.email = "Gültige E-Mail erforderlich";
+    if (pw.length < 1)        e.pw    = "Passwort eingeben";
+    setErr(e);
+    if (Object.keys(e).length) return;
+
+    setLoading(true);
+    await new Promise(r => setTimeout(r, 700));
+    const emailLow   = email.toLowerCase().trim();
+    const demo       = DEMO_USERS[emailLow];
+    const registered = await sLoad("registered-users", {}) || {};
+    const regUser    = registered[emailLow];
+
+    if (demo && demo.pw === pw) {
+      const d = { email:emailLow, name:demo.name, initials:demo.initials };
+      await sSave("auth-user", d);
+      await sSave("last-login-email", emailLow);
+      setLoading(false);
+      onLogin(d);
+      return;
+    }
+    if (regUser && regUser.pw === pw) {
+      const d = { email:emailLow, name:regUser.name, initials:regUser.initials };
+      await sSave("auth-user", d);
+      await sSave("last-login-email", emailLow);
+      setLoading(false);
+      onLogin(d);
+      return;
+    }
+    setErr({ pw: "Falsches Passwort" });
+    setLoading(false);
+  }
+
+  // ── Login mit Face ID ─────────────────────────────────────────────────────
+  async function doFaceID() {
+    setBioLoading(true); setBioMsg("");
+    try {
+      const cred = await sLoad("biometric-cred");
+      if (!cred) { setBioMsg("Face ID noch nicht eingerichtet."); setBioLoading(false); return; }
+      await bioVerify(cred.credId);
+      const u = await sLoad("auth-user");
+      if (u) { setBioLoading(false); onLogin(u); return; }
+      // auth-user weg aber cred da → User aus registered-users laden
+      const registered = await sLoad("registered-users", {}) || {};
+      const regUser    = registered[cred.userId];
+      if (regUser) {
+        const d = { email:regUser.email, name:regUser.name, initials:regUser.initials };
+        await sSave("auth-user", d);
+        setBioLoading(false);
+        onLogin(d);
+        return;
+      }
+      setBioMsg("Sitzung abgelaufen – bitte mit Passwort anmelden.");
+    } catch(e) {
+      if (e.name !== "NotAllowedError") setBioMsg("Biometrie fehlgeschlagen.");
+    }
+    setBioLoading(false);
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  if (phase === "checking") return (
+    <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",background:`linear-gradient(160deg,${T.navy},${T.tealDk})`}}>
+      <Spinner size={36} color={T.tealLt}/>
+    </div>
+  );
+
+  return (
+    <div style={{minHeight:"100%",display:"flex",flexDirection:"column",background:`linear-gradient(160deg,${T.navy} 0%,${T.navyMd} 45%,${T.tealDk} 100%)`,opacity:mounted?1:0,transform:mounted?"translateY(0)":"translateY(16px)",transition:"all .5s cubic-bezier(.34,1.56,.64,1)"}}>
+
+      {/* Logo-Bereich */}
+      <div style={{padding:"52px 32px 28px",textAlign:"center"}}>
+        <div style={{width:64,height:64,background:`linear-gradient(135deg,${T.teal},${T.tealDk})`,borderRadius:20,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",boxShadow:`0 8px 32px ${T.teal}50`}}>
+          <Icon n="mountain" s={30} c={T.white}/>
+        </div>
+        <h1 style={{margin:"0 0 6px",fontSize:26,fontWeight:700,color:T.white,fontFamily:"'DM Serif Display',serif"}}>AlpineRecall</h1>
+        <p style={{margin:0,fontSize:13,color:"#93C5FD",fontFamily:"'DM Sans',sans-serif"}}>
+          {phase === "firstTime" ? "Willkommen – erstelle deinen Account" : "Willkommen zurück"}
+        </p>
+      </div>
+
+      {/* Formular-Karte */}
+      <div style={{flex:1,background:T.white,borderRadius:"28px 28px 0 0",padding:"28px 24px calc(36px + env(safe-area-inset-bottom,0px))"}}>
+
+        {/* ── ERSTMALIG: Nur Registrierung ── */}
+        {(phase === "firstTime" || phase === "register") && <>
+          <h2 style={{margin:"0 0 4px",fontSize:20,fontWeight:700,color:T.navy,fontFamily:"'DM Serif Display',serif"}}>Konto erstellen</h2>
+          <p style={{margin:"0 0 20px",fontSize:13,color:T.s500,fontFamily:"'DM Sans',sans-serif"}}>Einmalig registrieren – danach reicht dein Passwort oder Face ID.</p>
+
+          <FInput label="Vollständiger Name" value={name} onChange={e=>setName(e.target.value)} placeholder="Max Mustermann" icon="user" error={err.name} autoFocus/>
+          <FInput label="E-Mail-Adresse" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@beispiel.de" icon="mail" error={err.email}/>
+          <FInput label="Passwort" type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="Mindestens 6 Zeichen" icon="lock" error={err.pw}/>
+          <FInput label="Passwort wiederholen" type="password" value={pw2} onChange={e=>setPw2(e.target.value)} placeholder="Passwort bestätigen" icon="lock" error={err.pw2}/>
+
+          {loading ? <div style={{padding:"12px 0"}}><Spinner/></div> : <Btn full label="Konto erstellen" variant="navy" onClick={doRegister}/>}
+
+          {phase === "register" && (
+            <button onClick={()=>{setPhase("login");setErr({});}} style={{marginTop:14,width:"100%",background:"none",border:"none",color:T.teal,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+              ← Zurück zum Login
+            </button>
+          )}
+
+          {phase === "firstTime" && (
+            <div style={{marginTop:14,background:T.blueLt,border:`1px solid ${T.blue}30`,borderRadius:10,padding:"9px 13px"}}>
+              <p style={{margin:0,fontSize:12,color:T.blue,fontFamily:"'DM Sans',sans-serif"}}><strong>Demo:</strong> Oder melde dich an mit max@dav.de · demo1234</p>
+              <button onClick={()=>{setPhase("login");setEmail("max@dav.de");}} style={{background:"none",border:"none",color:T.blue,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",padding:"4px 0 0"}}>→ Zum Login</button>
+            </div>
+          )}
+        </>}
+
+        {/* ── WIEDERKEHRENDER USER: Login ── */}
+        {phase === "login" && <>
+          <h2 style={{margin:"0 0 4px",fontSize:20,fontWeight:700,color:T.navy,fontFamily:"'DM Serif Display',serif"}}>Willkommen zurück</h2>
+          <p style={{margin:"0 0 20px",fontSize:13,color:T.s500,fontFamily:"'DM Sans',sans-serif"}}>Melde dich mit deinem Account an.</p>
+
+          {/* Face ID – prominent oben wenn eingerichtet */}
+          {hasBioCred && bioAvail && (
+            <div style={{marginBottom:20}}>
+              <button onClick={doFaceID} disabled={bioLoading} style={{width:"100%",background:`linear-gradient(135deg,${T.navy},${T.navyMd})`,border:"none",borderRadius:14,padding:"16px",color:T.white,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:12,boxShadow:`0 4px 20px ${T.navy}40`}}>
+                {bioLoading ? <Spinner size={22} color={T.white}/> : <>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 10a2 2 0 01-2 2C6.48 12 4 9.76 4 7 4 4.24 6.48 2 12 2s8 2.24 8 5c0 1-.39 2.04-1.08 2.79"/><path d="M12 20c0-4.41 3.59-8 8-8"/><path d="M12 20c0-4.41-3.59-8-8-8"/><path d="M12 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2"/></svg>
+                  Mit Face ID / Touch ID anmelden
+                </>}
+              </button>
+              {bioMsg && <p style={{margin:"8px 0 0",fontSize:12,color:T.amber,textAlign:"center",fontFamily:"'DM Sans',sans-serif"}}>{bioMsg}</p>}
+              <div style={{display:"flex",alignItems:"center",gap:10,margin:"16px 0"}}>
+                <div style={{flex:1,height:1,background:T.s200}}/>
+                <span style={{fontSize:12,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>oder mit Passwort</span>
+                <div style={{flex:1,height:1,background:T.s200}}/>
+              </div>
+            </div>
+          )}
+
+          <FInput label="E-Mail-Adresse" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@beispiel.de" icon="mail" error={err.email} autoFocus={!hasBioCred}/>
+          <FInput label="Passwort" type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="Passwort eingeben" icon="lock" error={err.pw}/>
+
+          {loading ? <div style={{padding:"12px 0"}}><Spinner/></div> : <Btn full label="Anmelden" variant="navy" onClick={doLogin}/>}
+
+          <button onClick={()=>{setPhase("register");setErr({});setPw("");setPw2("");}} style={{marginTop:14,width:"100%",background:"none",border:"none",color:T.teal,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+            Noch kein Account? Jetzt registrieren →
+          </button>
+        </>}
+
+        <p style={{marginTop:16,textAlign:"center",fontSize:11,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>Daten werden nach EU-DSGVO verarbeitet und nie verkauft.</p>
+      </div>
+    </div>
+  );
 }
+
+
 // ════════════════════════════════════════════════════════════════════════
 // PATCH 1: SwipeableSheet – ersetzt Sheet, wischbar nach unten
 // ════════════════════════════════════════════════════════════════════════
@@ -1502,13 +1661,13 @@ export default function AlpineRecallApp(){
 
       {/* ── BIOMETRIC SETUP MODAL ─────────────────────────────────────────── */}
       {showBioSetup && user && (
-        <BiometricSetupModal user={user} onDone={async()=>{ await sSave("bio-setup-shown",true); setShowBioSetup(false); }}/>
+        <FaceIDSetupModal user={user} onDone={()=>setShowBioSetup(false)}/>
       )}
 
       {/* ── AUTH ──────────────────────────────────────────────────────────── */}
       {!user ? (
         <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-          <AuthScreen onLogin={async u=>{ setUser(u); const hasCred=await sLoad("biometric-cred"); const shown=await sLoad("bio-setup-shown"); if(!hasCred&&!shown) setShowBioSetup(true); }}/>
+          <AuthScreen onLogin={async u=>{ setUser(u); const hasCred=await sLoad("biometric-cred"); const shown=await sLoad("bio-setup-shown"); if(!hasCred&&!shown) setShowBioSetup(true); await sSave("bio-setup-shown",true); }}/>
         </div>
       ) : (
         <>
