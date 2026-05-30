@@ -1,4 +1,4 @@
-/* eslint-disable no-undef */
+/* eslint-disable */
 import { useState, useEffect, useRef, useCallback } from "react";
 
 const T = {
@@ -664,23 +664,24 @@ function RecallsScreen({gear,onMarkDone}){
 // ─── GEAR-GESUNDHEITS-SCORE ──────────────────────────────────────────────────
 function calcHealthScore(gear) {
   if (!gear.length) return 100;
+  // Aktiver Rückruf = sofort kritisch, egal was sonst
+  const hasOpenRecall = gear.some(g => g.status === "recall" && !g.done);
+  if (hasOpenRecall) return 0;
   let total = 0;
   gear.forEach(item => {
     let score = 100;
-    // Rückruf: schwerwiegend
-    if (item.status === "recall" && !item.done) score -= 40;
     // Ablaufdatum
     const exp = expiryInfo(item.kaufDatum, item.cat);
     if (exp) {
-      if (exp.status === "expired")  score -= 35;
-      else if (exp.status === "critical") score -= 20;
+      if (exp.status === "expired")   score -= 40;
+      else if (exp.status === "critical") score -= 22;
       else if (exp.status === "warning")  score -= 8;
     }
     // Sturz-/Schlagprotokoll
     const impacts = item.impacts || [];
     if (impacts.length > 0) {
       const daysSince = (new Date() - new Date(impacts[impacts.length-1].date)) / (1000*60*60*24);
-      if (daysSince < 30)  score -= 25;
+      if (daysSince < 30)   score -= 25;
       else if (daysSince < 365) score -= 10;
     }
     total += Math.max(0, score);
@@ -688,9 +689,17 @@ function calcHealthScore(gear) {
   return Math.round(total / gear.length);
 }
 
-function HealthScoreRing({ score }) {
-  const color = score >= 80 ? T.green : score >= 60 ? T.amber : T.red;
-  const label = score >= 80 ? "Sehr gut" : score >= 60 ? "Mittel" : "Kritisch";
+// Score → Farbe + Label
+function scoreLabel(score, hasRecall) {
+  if (hasRecall) return { label:"Rückruf aktiv!", color:T.red };
+  if (score >= 85) return { label:"Sehr gut",     color:T.green  };
+  if (score >= 70) return { label:"Gut",           color:T.green  };
+  if (score >= 50) return { label:"Achtung",       color:T.amber  };
+  return              { label:"Kritisch",        color:T.red    };
+}
+
+function HealthScoreRing({ score, hasRecall=false }) {
+  const { label, color } = scoreLabel(score, hasRecall);
   const r = 38, circ = 2 * Math.PI * r;
   const dash = (score / 100) * circ;
   return (
@@ -703,8 +712,8 @@ function HealthScoreRing({ score }) {
             style={{transition:"stroke-dasharray 1s ease"}}/>
         </svg>
         <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
-          <span style={{fontSize:22,fontWeight:800,color,fontFamily:"'DM Serif Display',serif",lineHeight:1}}>{score}</span>
-          <span style={{fontSize:9,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>von 100</span>
+          <span style={{fontSize:hasRecall?28:22,fontWeight:800,color,fontFamily:"'DM Serif Display',serif",lineHeight:1}}>{hasRecall?"⚠":score}</span>
+          {!hasRecall&&<span style={{fontSize:9,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>von 100</span>}
         </div>
       </div>
       <span style={{fontSize:12,fontWeight:700,color,fontFamily:"'DM Sans',sans-serif"}}>{label}</span>
@@ -716,6 +725,7 @@ function HealthScoreRing({ score }) {
 function TourScreen({ gear, onUpdate }) {
   const [selTour, setSelTour] = useState(null);
   const [editItem, setEditItem] = useState(null);
+  const [mainTab, setMainTab] = useState("touren"); // touren | ablauf
 
   const tourGear = (tourId) => tourId === "alle"
     ? gear
@@ -740,7 +750,7 @@ function TourScreen({ gear, onUpdate }) {
               </div>
               <p style={{margin:0,fontSize:13,color:"rgba(255,255,255,.8)",fontFamily:"'DM Sans',sans-serif"}}>{items.length} Artikel · Setup-Score</p>
             </div>
-            <HealthScoreRing score={score}/>
+            <HealthScoreRing score={score} hasRecall={items.some(g=>g.status==="recall"&&!g.done)}/>
           </div>
         </div>
 
@@ -790,13 +800,77 @@ function TourScreen({ gear, onUpdate }) {
     );
   }
 
+  // ── Ablauf-Inhalt (eingebettet) ───────────────────────────────────────────
+  const expiryItems = gear
+    .map(g=>({...g,exp:expiryInfo(g.kaufDatum,g.cat)}))
+    .filter(g=>g.exp)
+    .sort((a,b)=>a.exp.daysLeft-b.exp.daysLeft);
+  const expCritical = expiryItems.filter(g=>g.exp.status==="expired"||g.exp.status==="critical");
+  const expWarning  = expiryItems.filter(g=>g.exp.status==="warning");
+  const expOk       = expiryItems.filter(g=>g.exp.status==="ok");
+
+  function ExpiryCard({item}){
+    const {exp}=item; const col=expiryColor(exp.status);
+    const stLabel={expired:"Abgelaufen",critical:"Bald ablaufend",warning:"In ~1 Jahr",ok:"OK"}[exp.status];
+    return <div style={{background:T.white,borderRadius:14,padding:"13px 16px",border:`1.5px solid ${exp.status!=="ok"?col:T.s200}`,boxShadow:"0 2px 6px rgba(0,0,0,.05)"}}>
+      <div style={{display:"flex",alignItems:"center",gap:12}}>
+        <div style={{width:42,height:42,borderRadius:12,background:catColor(item.cat)+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{catIcon(item.cat)}</div>
+        <div style={{flex:1,minWidth:0}}>
+          <p style={{margin:"0 0 1px",fontSize:13,fontWeight:700,color:T.navy,fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{item.name}</p>
+          <p style={{margin:0,fontSize:11,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>{item.brand} · {exp.ageYears} J. alt</p>
+        </div>
+        <Badge label={stLabel} color={col} bg={col+"18"}/>
+      </div>
+      <div style={{height:4,background:T.s200,borderRadius:2,marginTop:10,overflow:"hidden"}}>
+        <div style={{height:"100%",width:`${exp.pct}%`,background:col,borderRadius:2,transition:"width .5s"}}/>
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",marginTop:5}}>
+        <span style={{fontSize:11,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>Kauf: {item.kaufDatum?new Date(item.kaufDatum).toLocaleDateString("de-DE"):"–"}</span>
+        <span style={{fontSize:11,color:col,fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>{exp.status==="expired"?"⚠ Überfällig!":exp.daysLeft<365?`${exp.daysLeft} Tage verbleibend`:`Ablauf ${exp.expStr}`}</span>
+      </div>
+    </div>;
+  }
+
   // Tour-Karten Übersicht
   return (
     <div>
-      <div style={{padding:"20px 16px 14px"}}>
-        <h2 style={{margin:"0 0 4px",fontSize:20,fontWeight:700,color:T.navy,fontFamily:"'DM Serif Display',serif"}}>Tour-Übersicht</h2>
-        <p style={{margin:0,fontSize:13,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>Deine Ausrüstung nach Tourentyp</p>
+      <div style={{padding:"20px 16px 12px"}}>
+        <h2 style={{margin:"0 0 12px",fontSize:20,fontWeight:700,color:T.navy,fontFamily:"'DM Serif Display',serif"}}>Ausrüstung & Gesundheit</h2>
+        {/* Tab-Toggle */}
+        <div style={{display:"flex",background:T.s100,borderRadius:12,padding:3}}>
+          {[["touren","🗺️  Touren"],["ablauf","📅  Ablaufdaten"]].map(([k,l])=>(
+            <button key={k} onClick={()=>setMainTab(k)} style={{flex:1,border:"none",borderRadius:10,padding:"9px 8px",background:mainTab===k?T.white:"transparent",color:mainTab===k?T.navy:T.s400,fontWeight:mainTab===k?700:500,fontSize:13,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",boxShadow:mainTab===k?"0 1px 6px rgba(0,0,0,.08)":"none",transition:"all .2s"}}>
+              {l}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* ── ABLAUFDATEN TAB ── */}
+      {mainTab==="ablauf"&&(
+        <div style={{padding:"0 16px",display:"flex",flexDirection:"column",gap:10}}>
+          <div style={{background:T.blueLt,border:`1px solid ${T.blue}30`,borderRadius:12,padding:"9px 13px"}}>
+            <p style={{margin:0,fontSize:12,color:T.blue,fontFamily:"'DM Sans',sans-serif"}}><strong>Norm EN 12492:</strong> Helme & Seile max. 10 J., Karabiner max. 15 J. Immer Herstellerhinweis beachten.</p>
+          </div>
+          {expCritical.length>0&&<>
+            <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:"50%",background:T.red}}/><p style={{margin:0,fontSize:11,fontWeight:700,color:T.red,textTransform:"uppercase",letterSpacing:"0.05em",fontFamily:"'DM Sans',sans-serif"}}>Kritisch / Abgelaufen</p></div>
+            {expCritical.map(g=><ExpiryCard key={g.id} item={g}/>)}
+          </>}
+          {expWarning.length>0&&<>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginTop:4}}><div style={{width:8,height:8,borderRadius:"50%",background:T.amber}}/><p style={{margin:0,fontSize:11,fontWeight:700,color:T.amber,textTransform:"uppercase",letterSpacing:"0.05em",fontFamily:"'DM Sans',sans-serif"}}>Warnung – innerhalb 12 Monate</p></div>
+            {expWarning.map(g=><ExpiryCard key={g.id} item={g}/>)}
+          </>}
+          {expOk.length>0&&<>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginTop:4}}><div style={{width:8,height:8,borderRadius:"50%",background:T.green}}/><p style={{margin:0,fontSize:11,fontWeight:700,color:T.green,textTransform:"uppercase",letterSpacing:"0.05em",fontFamily:"'DM Sans',sans-serif"}}>In Ordnung</p></div>
+            {expOk.map(g=><ExpiryCard key={g.id} item={g}/>)}
+          </>}
+          {expiryItems.length===0&&<div style={{textAlign:"center",padding:"40px 0"}}><div style={{fontSize:44,marginBottom:10}}>📅</div><p style={{margin:0,fontSize:14,color:T.s500,fontFamily:"'DM Serif Display',serif"}}>Kein Kaufdatum hinterlegt</p></div>}
+          <div style={{height:8}}/>
+        </div>
+      )}
+
+      {/* ── TOUREN TAB ── */}
+      {mainTab==="touren"&&<>
 
       {/* Gesamt-Score */}
       <div style={{margin:"0 16px 14px",background:`linear-gradient(135deg,${T.navy},${T.navyMd})`,borderRadius:16,padding:"16px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -804,7 +878,7 @@ function TourScreen({ gear, onUpdate }) {
           <p style={{margin:"0 0 4px",fontSize:12,color:T.tealLt,fontWeight:700,fontFamily:"'DM Sans',sans-serif",textTransform:"uppercase",letterSpacing:"0.05em"}}>Gesamt-Gesundheitsscore</p>
           <p style={{margin:0,fontSize:13,color:"rgba(255,255,255,.7)",fontFamily:"'DM Sans',sans-serif"}}>Basierend auf {gear.length} Artikeln</p>
         </div>
-        <HealthScoreRing score={calcHealthScore(gear)}/>
+        <HealthScoreRing score={calcHealthScore(gear)} hasRecall={gear.some(g=>g.status==="recall"&&!g.done)}/>
       </div>
 
       {/* Tour-Karten Grid */}
@@ -834,6 +908,7 @@ function TourScreen({ gear, onUpdate }) {
         })}
       </div>
       <div style={{height:8}}/>
+      </>}
     </div>
   );
 }
@@ -849,12 +924,12 @@ function HomeScreen({user,gear,onNav,onSimRecall,isOffline}){
       <p style={{margin:"0 0 10px",fontSize:13,opacity:.9,lineHeight:1.4,fontFamily:"'DM Sans',sans-serif"}}><strong>{openRecalls[0]?.name}</strong> ist betroffen.</p>
       <span style={{background:"rgba(255,255,255,.2)",borderRadius:8,padding:"6px 12px",fontSize:12,fontWeight:700,fontFamily:"'DM Sans',sans-serif"}}>Jetzt ansehen →</span>
     </div>}
-    {expiring.length>0&&<div onClick={()=>onNav("expiry")} style={{margin:"0 16px",background:`linear-gradient(135deg,${T.orange},#C2410C)`,borderRadius:14,padding:"13px 16px",color:T.white,cursor:"pointer"}}>
+    {expiring.length>0&&<div onClick={()=>onNav("tour")} style={{margin:"0 16px",background:`linear-gradient(135deg,${T.orange},#C2410C)`,borderRadius:14,padding:"13px 16px",color:T.white,cursor:"pointer"}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}><Icon n="clock" s={15} c={T.white}/><span style={{fontWeight:700,fontSize:13,fontFamily:"'DM Sans',sans-serif"}}>{expiring.length} Artikel bald ablaufend</span></div>
       <p style={{margin:0,fontSize:12,opacity:.85,fontFamily:"'DM Sans',sans-serif"}}>{expiring[0]?.name} – Ablaufdatum prüfen</p>
     </div>}
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,padding:"0 16px"}}>
-      {[{l:"Registriert",v:gear.length,c:T.teal,bg:T.tealLt,i:"gear",nav:"gear"},{l:"Alles OK",v:gear.filter(g=>g.status==="ok").length,c:T.green,bg:T.greenLt,i:"check",nav:null},{l:"Rückrufe",v:openRecalls.length,c:T.red,bg:T.redLt,i:"alert",nav:"recalls"},{l:"Bald ablaufend",v:expiring.length,c:T.orange,bg:T.orangeLt,i:"clock",nav:"expiry"}].map((k,i)=><div key={i} onClick={()=>k.nav&&onNav(k.nav)} style={{background:k.bg,borderRadius:14,padding:"14px",display:"flex",flexDirection:"column",gap:6,cursor:k.nav?"pointer":"default"}}>
+      {[{l:"Registriert",v:gear.length,c:T.teal,bg:T.tealLt,i:"gear",nav:"gear"},{l:"Alles OK",v:gear.filter(g=>g.status==="ok").length,c:T.green,bg:T.greenLt,i:"check",nav:null},{l:"Rückrufe",v:openRecalls.length,c:T.red,bg:T.redLt,i:"alert",nav:"recalls"},{l:"Bald ablaufend",v:expiring.length,c:T.orange,bg:T.orangeLt,i:"clock",nav:"tour"}].map((k,i)=><div key={i} onClick={()=>k.nav&&onNav(k.nav)} style={{background:k.bg,borderRadius:14,padding:"14px",display:"flex",flexDirection:"column",gap:6,cursor:k.nav?"pointer":"default"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:24,fontWeight:800,color:k.c,fontFamily:"'DM Serif Display',serif"}}>{k.v}</span><Icon n={k.i} s={18} c={k.c}/></div>
         <span style={{fontSize:11.5,color:T.s500,fontFamily:"'DM Sans',sans-serif"}}>{k.l}</span>
       </div>)}
@@ -862,7 +937,7 @@ function HomeScreen({user,gear,onNav,onSimRecall,isOffline}){
 
     {/* Gesundheits-Score Kachel */}
     <div onClick={()=>onNav("tour")} style={{margin:"0 16px",background:T.white,borderRadius:16,padding:"14px 16px",border:`1px solid ${T.s200}`,cursor:"pointer",display:"flex",alignItems:"center",gap:14,boxShadow:"0 2px 10px rgba(0,0,0,.06)"}}>
-      <HealthScoreRing score={calcHealthScore(gear)}/>
+      <HealthScoreRing score={calcHealthScore(gear)} hasRecall={gear.some(g=>g.status==="recall"&&!g.done)}/>
       <div style={{flex:1}}>
         <p style={{margin:"0 0 3px",fontSize:14,fontWeight:700,color:T.navy,fontFamily:"'DM Sans',sans-serif"}}>Gear-Gesundheitsscore</p>
         <p style={{margin:"0 0 8px",fontSize:12,color:T.s500,fontFamily:"'DM Sans',sans-serif"}}>Basierend auf Alter, Rückrufen & Stürzen</p>
@@ -958,6 +1033,68 @@ function ProfileScreen({user,gear,onLogout,isOffline,lastSync,onOpenGPSR}){
 }
 
 // ═══ AUTH SCREEN (persistente Registrierung) ══════════════════════════════════
+// ── Einmaliges Face-ID Setup-Modal nach Login ────────────────────────────────
+function BiometricSetupModal({ user, onDone }) {
+  const [loading, setLoading] = useState(false);
+  const [done,    setDone]    = useState(false);
+  const [err,     setErr]     = useState("");
+
+  async function setup() {
+    setLoading(true); setErr("");
+    try {
+      if (!window.PublicKeyCredential) { onDone(); return; }
+      const challenge = crypto.getRandomValues(new Uint8Array(32));
+      const cred = await navigator.credentials.create({ publicKey: {
+        challenge,
+        rp: { name:"AlpineRecall", id:window.location.hostname },
+        user: { id:new TextEncoder().encode(user.email), name:user.email, displayName:user.name },
+        pubKeyCredParams: [{alg:-7,type:"public-key"},{alg:-257,type:"public-key"}],
+        authenticatorSelection: { authenticatorAttachment:"platform", userVerification:"required" },
+        timeout: 60000,
+      }});
+      const credId = btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
+      await sSave("biometric-cred", { credId, userId:user.email });
+      setDone(true);
+      setTimeout(onDone, 1500);
+    } catch(e) {
+      setErr(e.name==="NotAllowedError" ? "Abgebrochen." : "Nicht verfügbar.");
+      setTimeout(onDone, 2000);
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:500,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+      <div style={{background:T.white,borderRadius:"24px 24px 0 0",width:"100%",maxWidth:390,padding:"28px 24px calc(28px + env(safe-area-inset-bottom,0px))",animation:"ar-slideUp .35s ease"}}>
+        <div style={{textAlign:"center",marginBottom:24}}>
+          <div style={{fontSize:52,marginBottom:12}}>{done ? "✅" : "🔐"}</div>
+          <h3 style={{margin:"0 0 8px",fontSize:20,fontWeight:700,color:T.navy,fontFamily:"'DM Serif Display',serif"}}>
+            {done ? "Eingerichtet!" : "Schneller anmelden"}
+          </h3>
+          <p style={{margin:0,fontSize:13,color:T.s500,lineHeight:1.6,fontFamily:"'DM Sans',sans-serif"}}>
+            {done
+              ? "Face ID / Touch ID ist jetzt aktiv. Du kannst dich ab sofort damit anmelden."
+              : "Möchtest du dich beim nächsten Mal mit Face ID oder Touch ID anmelden – ohne Passwort?"}
+          </p>
+          {err && <p style={{margin:"8px 0 0",fontSize:12,color:T.amber,fontFamily:"'DM Sans',sans-serif"}}>{err}</p>}
+        </div>
+        {!done && (
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {loading
+              ? <div style={{padding:"8px 0"}}><Spinner/></div>
+              : <>
+                  <Btn full label="Face ID / Touch ID aktivieren" icon="fingerprint" variant="navy" onClick={setup}/>
+                  <Btn full label="Jetzt nicht" variant="ghost" onClick={onDone}/>
+                  <p style={{margin:0,textAlign:"center",fontSize:11,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>Du kannst das jederzeit in den Profil-Einstellungen aktivieren.</p>
+                </>
+            }
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AuthScreen({onLogin}){
   const [tab,setTab]=useState("login");
   const [email,setEmail]=useState(""); const [pw,setPw]=useState(""); const [pw2,setPw2]=useState(""); const [name,setName]=useState("");
@@ -1249,6 +1386,7 @@ export default function AlpineRecallApp(){
   const [isOffline,setIsOffline]=useState(false);
   const [lastSync,setLastSync]=useState(null);
   const [showGPSR,setShowGPSR]=useState(false);
+  const [showBioSetup,setShowBioSetup]=useState(false);
 
   useEffect(()=>{
     const link=document.createElement("link");
@@ -1362,10 +1500,15 @@ export default function AlpineRecallApp(){
         </div>
       )}
 
+      {/* ── BIOMETRIC SETUP MODAL ─────────────────────────────────────────── */}
+      {showBioSetup && user && (
+        <BiometricSetupModal user={user} onDone={async()=>{ await sSave("bio-setup-shown",true); setShowBioSetup(false); }}/>
+      )}
+
       {/* ── AUTH ──────────────────────────────────────────────────────────── */}
       {!user ? (
         <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-          <AuthScreen onLogin={u=>setUser(u)}/>
+          <AuthScreen onLogin={async u=>{ setUser(u); const hasCred=await sLoad("biometric-cred"); const shown=await sLoad("bio-setup-shown"); if(!hasCred&&!shown) setShowBioSetup(true); }}/>
         </div>
       ) : (
         <>
