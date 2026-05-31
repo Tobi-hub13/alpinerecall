@@ -42,22 +42,14 @@ const DEMO_USERS = {
   "anna@sac.ch": { pw:"demo1234", name:"Anna Berger", initials:"AB" },
 };
 
-// Tour-Kategorien
-const TOUR_TYPES = [
-  { id:"klettern",   label:"Klettern",     icon:"🧗", color:"#2563EB" },
-  { id:"hochtour",   label:"Hochtour",     icon:"🏔️", color:"#0D9488" },
-  { id:"skitouren",  label:"Skitouren",    icon:"⛷️", color:"#7C3AED" },
-  { id:"wandern",    label:"Wandern",      icon:"🥾", color:"#16A34A" },
-  { id:"eisklettern",label:"Eisklettern",  icon:"🧊", color:"#0284C7" },
-  { id:"alle",       label:"Alle Touren",  icon:"🗺️", color:"#64748B" },
-];
+const TOUR_TYPES=[{id:"klettern",label:"Klettern",icon:"🧗",color:"#2563EB"},{id:"hochtour",label:"Hochtour",icon:"🏔️",color:"#0D9488"},{id:"skitouren",label:"Skitouren",icon:"⛷️",color:"#7C3AED"},{id:"wandern",label:"Wandern",icon:"🥾",color:"#16A34A"},{id:"eisklettern",label:"Eisklettern",icon:"🧊",color:"#0284C7"},{id:"alle",label:"Alle Touren",icon:"🗺️",color:"#64748B"}];
 
-const INIT_GEAR = [
-  { id:"g1", name:"Helm Petzl Meteor IV",    brand:"Petzl",         cat:"Helm",      ean:"3342540837076", serial:"SN-PETZ-MET-78432", reg:"12.03.2024", kaufDatum:"2019-03-12", status:"ok",     done:false, receipt:null, teamId:null, tourType:"klettern",  impacts:[] },
-  { id:"g2", name:"Seil Edelrid Swift 48X",  brand:"Edelrid",       cat:"Seil",      ean:"4052285098001", serial:"",                  reg:"05.01.2024", kaufDatum:"2020-01-05", status:"ok",     done:false, receipt:null, teamId:null, tourType:"klettern",  impacts:[] },
-  { id:"g3", name:"Karabiner BD 210 Serie",  brand:"Black Diamond", cat:"Karabiner", ean:"793661360728",  serial:"SN-BD210-2023-Q4A", reg:"20.11.2023", kaufDatum:"2023-11-20", status:"recall", done:false, receipt:null, teamId:null, tourType:"klettern",  impacts:[] },
-  { id:"g4", name:"LVS Mammut Barryvox",     brand:"Mammut",        cat:"LVS-Gerät", ean:"7613357529310", serial:"",                  reg:"02.09.2023", kaufDatum:"2022-09-02", status:"ok",     done:false, receipt:null, teamId:"team1",tourType:"skitouren", impacts:[] },
-  { id:"g5", name:"Klettergurt Ortovox Rock",brand:"Ortovox",       cat:"Gurt",      ean:"4251422500067", serial:"",                  reg:"18.06.2023", kaufDatum:"2015-06-18", status:"ok",     done:false, receipt:null, teamId:null, tourType:"hochtour",  impacts:[] },
+const INIT_GEAR=[
+  {id:"g1",name:"Helm Petzl Meteor IV",brand:"Petzl",cat:"Helm",ean:"3342540837076",serial:"SN-PETZ-MET-78432",reg:"12.03.2024",kaufDatum:"2019-03-12",status:"ok",done:false,receipt:null,teamId:null,tourType:"klettern",impacts:[]},
+  {id:"g2",name:"Seil Edelrid Swift 48X",brand:"Edelrid",cat:"Seil",ean:"4052285098001",serial:"",reg:"05.01.2024",kaufDatum:"2020-01-05",status:"ok",done:false,receipt:null,teamId:null,tourType:"klettern",impacts:[]},
+  {id:"g3",name:"Karabiner BD 210 Serie",brand:"Black Diamond",cat:"Karabiner",ean:"793661360728",serial:"SN-BD210-2023-Q4A",reg:"20.11.2023",kaufDatum:"2023-11-20",status:"recall",done:false,receipt:null,teamId:null,tourType:"klettern",impacts:[]},
+  {id:"g4",name:"LVS Mammut Barryvox",brand:"Mammut",cat:"LVS-Gerät",ean:"7613357529310",serial:"",reg:"02.09.2023",kaufDatum:"2022-09-02",status:"ok",done:false,receipt:null,teamId:"team1",tourType:"skitouren",impacts:[]},
+  {id:"g5",name:"Klettergurt Ortovox Rock",brand:"Ortovox",cat:"Gurt",ean:"4251422500067",serial:"",reg:"18.06.2023",kaufDatum:"2015-06-18",status:"ok",done:false,receipt:null,teamId:null,tourType:"hochtour",impacts:[]},
 ];
 
 function uid()      { return Date.now().toString(36)+Math.random().toString(36).slice(2,5); }
@@ -80,7 +72,6 @@ function expiryColor(s) { return s==="expired"?T.red:s==="critical"?T.orange:s==
 function catIcon(c)  { const m={Helm:"⛑️",Seil:"🪢",Karabiner:"🔗","LVS-Gerät":"📡",Gurt:"🧗",Pickel:"⛏️",Steigeisen:"🦶",Sicherung:"🔒",Rucksack:"🎒"};return m[c]||"🏔️"; }
 function catColor(c) { const m={Helm:T.blue,Seil:T.teal,Karabiner:T.orange,"LVS-Gerät":T.navy,Gurt:T.green,Pickel:T.s700,Steigeisen:T.purple,Sicherung:T.teal,Rucksack:T.orange};return m[c]||T.s500; }
 
-// Storage – localStorage für echte App, window.storage als Fallback für Claude-Demo
 function sLoad(k, fb=null) {
   try {
     const v = localStorage.getItem(k);
@@ -152,8 +143,6 @@ function FInput({label,type="text",value,onChange,placeholder,icon,error,autoFoc
   return <div style={{marginBottom:14}}>{label&&<label style={{display:"block",fontSize:12,fontWeight:600,color:T.s500,marginBottom:5,fontFamily:"'DM Sans',sans-serif"}}>{label}</label>}<div style={{position:"relative"}}>{icon&&<div style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",pointerEvents:"none"}}><Icon n={icon} s={16} c={T.s400}/></div>}<input autoFocus={autoFocus} type={t2} value={value} onChange={onChange} placeholder={placeholder} min={min} max={max} style={{width:"100%",boxSizing:"border-box",border:`1.5px solid ${error?T.red:T.s200}`,borderRadius:12,padding:icon?"12px 40px 12px 38px":"12px 40px 12px 14px",fontSize:14,outline:"none",fontFamily:"'DM Sans',sans-serif",color:T.navy,background:T.white,transition:"border-color .2s"}} onFocus={e=>e.target.style.borderColor=error?T.red:T.teal} onBlur={e=>e.target.style.borderColor=error?T.red:T.s200}/>{type==="password"&&<button onClick={()=>setShow(s=>!s)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",padding:2}}><Icon n={show?"eyeoff":"eye"} s={16} c={T.s400}/></button>}</div>{error&&<p style={{margin:"4px 0 0",fontSize:12,color:T.red,fontFamily:"'DM Sans',sans-serif"}}>{error}</p>}</div>;
 }
 
-// Sheet: see SwipeableSheet below
-
 function Badge({label,color,bg}){return <span style={{background:bg,color,fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,fontFamily:"'DM Sans',sans-serif",flexShrink:0,whiteSpace:"nowrap"}}>{label}</span>;}
 function Spinner({size=36,color=T.teal}){return <><style>{`@keyframes ar-spin{to{transform:rotate(360deg)}}`}</style><div style={{width:size,height:size,border:`3px solid ${color}30`,borderTop:`3px solid ${color}`,borderRadius:"50%",animation:"ar-spin .8s linear infinite",margin:"0 auto"}}/></>;}
 
@@ -166,7 +155,6 @@ function OfflineBanner({isOffline,lastSync}){
   if(!isOffline) return null;
   return <div style={{background:"linear-gradient(135deg,#374151,#1F2937)",padding:"8px 16px",display:"flex",alignItems:"center",gap:8}}><Icon n="wifi-off" s={13} c="#FCD34D"/><p style={{margin:0,fontSize:11,color:"#FCD34D",fontFamily:"'DM Sans',sans-serif",flex:1}}>Offline-Modus – Daten aus Cache{lastSync?` · ${new Date(lastSync).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})}`:""}</p></div>;
 }
-// ═══ SMART SCANNER ═══════════════════════════════════════════════════════════
 const SCAN_MODES=[{id:"barcode",label:"Barcode",icon:"barcode",hint:"EAN-Barcode in den Rahmen halten"},{id:"qr",label:"QR-Code",icon:"qr",hint:"QR-Code in den Rahmen halten"},{id:"serial",label:"Seriennr.",icon:"text",hint:"Typenschild fotografieren"},{id:"receipt",label:"Quittung",icon:"receipt",hint:"Kaufbeleg fotografieren"}];
 
 function SmartScanner({onDetect,onClose,initialMode="barcode"}){
@@ -278,7 +266,6 @@ function ScanResult({rawCode,scanMode,gear,onAdd,onClose,prefillDate}){
     </>}
   </div></Sheet>;
 }
-// ═══ GPSR INFO SCREEN ════════════════════════════════════════════════════════
 function GPSRScreen({onClose}){
   const POINTS=[
     {icon:"🏛️",title:"Was ist die EU-GPSR?",text:"Die General Product Safety Regulation (EU 2023/988) gilt seit Dezember 2024. Sie verpflichtet alle Hersteller, die in der EU Produkte verkaufen, zu aktiver und nachweisbarer Sicherheitskommunikation – besonders bei sicherheitskritischer Ausrüstung wie Kletterausrüstung oder Helmen.",color:T.blueLt,border:T.blue},
@@ -328,7 +315,6 @@ function GPSRScreen({onClose}){
   </div>;
 }
 
-// ═══ ABLAUFDATUM SCREEN ══════════════════════════════════════════════════════
 function ExpiryScreen({gear}){
   const items=gear.map(g=>({...g,exp:expiryInfo(g.kaufDatum,g.cat)})).filter(g=>g.exp).sort((a,b)=>a.exp.daysLeft-b.exp.daysLeft);
   const critical=items.filter(g=>g.exp.status==="expired"||g.exp.status==="critical");
@@ -361,7 +347,6 @@ function ExpiryScreen({gear}){
     </div>
   </div>;
 }
-// ═══ TEAM SCREEN (Mehrfach-Auswahl) ══════════════════════════════════════════
 function TeamScreen({user,gear,onAdd}){
   const [myTeams,setMyTeams]=useState([]);
   const [view,setView]=useState("list");
@@ -484,8 +469,6 @@ function TeamScreen({user,gear,onAdd}){
     </div>
   </div>;
 }
-// ═══ GEAR SCREEN (My/Team/All Toggle) ════════════════════════════════════════
-// ─── STURZ-/SCHLAGPROTOKOLL KOMPONENTE ───────────────────────────────────────
 function ImpactLog({ item, onAddImpact }) {
   const [showForm, setShowForm] = useState(false);
   const [note, setNote] = useState("");
@@ -635,7 +618,6 @@ function GearScreen({gear,onAdd,onDelete}){
     </Sheet>}
   </div>;
 }
-// ═══ RECALLS SCREEN ══════════════════════════════════════════════════════════
 function RecallsScreen({gear,onMarkDone}){
   const [detail,setDetail]=useState(null);
   const [histTab,setHistTab]=useState("open");
@@ -672,24 +654,19 @@ function RecallsScreen({gear,onMarkDone}){
   </div>;
 }
 
-// ═══ HOME SCREEN ══════════════════════════════════════════════════════════════
-// ─── GEAR-GESUNDHEITS-SCORE ──────────────────────────────────────────────────
 function calcHealthScore(gear) {
   if (!gear.length) return 100;
-  // Aktiver Rückruf = sofort kritisch, egal was sonst
   const hasOpenRecall = gear.some(g => g.status === "recall" && !g.done);
   if (hasOpenRecall) return 0;
   let total = 0;
   gear.forEach(item => {
     let score = 100;
-    // Ablaufdatum
     const exp = expiryInfo(item.kaufDatum, item.cat);
     if (exp) {
       if (exp.status === "expired")   score -= 40;
       else if (exp.status === "critical") score -= 22;
       else if (exp.status === "warning")  score -= 8;
     }
-    // Sturz-/Schlagprotokoll
     const impacts = item.impacts || [];
     if (impacts.length > 0) {
       const daysSince = (new Date() - new Date(impacts[impacts.length-1].date)) / (1000*60*60*24);
@@ -701,7 +678,6 @@ function calcHealthScore(gear) {
   return Math.round(total / gear.length);
 }
 
-// Score → Farbe + Label
 function scoreLabel(score, hasRecall) {
   if (hasRecall) return { label:"Rückruf aktiv!", color:T.red };
   if (score >= 85) return { label:"Sehr gut",     color:T.green  };
@@ -733,7 +709,6 @@ function HealthScoreRing({ score, hasRecall=false }) {
   );
 }
 
-// ─── TOUR-ÜBERSICHT SCREEN ───────────────────────────────────────────────────
 function TourScreen({ gear, onUpdate }) {
   const [selTour, setSelTour] = useState(null);
   const [editItem, setEditItem] = useState(null);
@@ -812,7 +787,6 @@ function TourScreen({ gear, onUpdate }) {
     );
   }
 
-  // ── Ablauf-Inhalt (eingebettet) ───────────────────────────────────────────
   const expiryItems = gear
     .map(g=>({...g,exp:expiryInfo(g.kaufDatum,g.cat)}))
     .filter(g=>g.exp)
@@ -843,7 +817,6 @@ function TourScreen({ gear, onUpdate }) {
     </div>;
   }
 
-  // Tour-Karten Übersicht
   return (
     <div>
       <div style={{padding:"20px 16px 12px"}}>
@@ -973,16 +946,132 @@ function HomeScreen({user,gear,onNav,onSimRecall,isOffline}){
   </div>;
 }
 
-// ═══ PROFIL SCREEN ════════════════════════════════════════════════════════════
+function LockScreen({ user, onUnlock }) {
+  const [phase, setPhase]     = useState("idle"); // idle | scanning | error
+  const [msg,   setMsg]       = useState("");
+  const [bioAvail, setBioAvail] = useState(false);
+  const [pw,    setPw]        = useState("");
+  const [pwErr, setPwErr]     = useState("");
+  const [showPw, setShowPw]   = useState(false);
+
+  useEffect(() => {
+    bioIsAvailable().then(v => {
+      setBioAvail(v);
+      if (v) setTimeout(tryFaceID, 400); // Auto-Scan beim Öffnen
+    });
+  }, []);
+
+  async function tryFaceID() {
+    setPhase("scanning"); setMsg(""); setPwErr("");
+    try {
+      const cred = await sLoad("biometric-cred");
+      if (!cred) { setPhase("idle"); setShowPw(true); return; }
+      await bioVerify(cred.credId);
+      setPhase("idle");
+      onUnlock();
+    } catch(e) {
+      setPhase("error");
+      setMsg(e.name === "NotAllowedError" ? "Abgebrochen – bitte Passwort eingeben." : "Face ID nicht verfügbar.");
+      setShowPw(true);
+    }
+  }
+
+  async function tryPassword() {
+    if (pw.length < 1) { setPwErr("Passwort eingeben"); return; }
+    const registered = await sLoad("registered-users", {}) || {};
+    const demo       = DEMO_USERS[user.email];
+    const regUser    = registered[user.email];
+    const correct    = (demo && demo.pw === pw) || (regUser && regUser.pw === pw);
+    if (correct) { onUnlock(); }
+    else { setPwErr("Falsches Passwort"); }
+  }
+
+  return (
+    <div style={{position:"fixed",inset:0,background:`linear-gradient(160deg,${T.navy} 0%,${T.navyMd} 50%,${T.tealDk} 100%)`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 32px",paddingTop:"calc(40px + env(safe-area-inset-top,0px))"}}>
+
+      {/* App-Logo */}
+      <div style={{marginBottom:32,textAlign:"center"}}>
+        <div style={{width:72,height:72,background:`linear-gradient(135deg,${T.teal},${T.tealDk})`,borderRadius:22,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px",boxShadow:`0 8px 32px ${T.teal}50`}}>
+          <Icon n="mountain" s={34} c={T.white}/>
+        </div>
+        <h1 style={{margin:"0 0 4px",fontSize:22,fontWeight:700,color:T.white,fontFamily:"'DM Serif Display',serif"}}>AlpineRecall</h1>
+        <p style={{margin:0,fontSize:13,color:"rgba(255,255,255,.6)",fontFamily:"'DM Sans',sans-serif"}}>Willkommen zurück, {user.name.split(" ")[0]}</p>
+      </div>
+
+      {/* Face ID Button */}
+      {bioAvail && (
+        <button onClick={tryFaceID} disabled={phase==="scanning"}
+          style={{width:"100%",maxWidth:320,background:"rgba(255,255,255,.12)",border:"1.5px solid rgba(255,255,255,.25)",borderRadius:18,padding:"20px",marginBottom:16,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:10,backdropFilter:"blur(10px)",transition:"all .2s"}}
+          onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,.18)"}
+          onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,.12)"}>
+          {phase === "scanning"
+            ? <Spinner size={36} color={T.tealLt}/>
+            : <>
+                <div style={{width:56,height:56,borderRadius:"50%",background:"rgba(255,255,255,.15)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 10a2 2 0 01-2 2C6.48 12 4 9.76 4 7 4 4.24 6.48 2 12 2s8 2.24 8 5c0 1-.39 2.04-1.08 2.79"/>
+                    <path d="M12 20c0-4.41 3.59-8 8-8"/>
+                    <path d="M12 20c0-4.41-3.59-8-8-8"/>
+                    <path d="M12 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2"/>
+                  </svg>
+                </div>
+                <span style={{fontSize:15,fontWeight:700,color:T.white,fontFamily:"'DM Sans',sans-serif"}}>Mit Face ID / Touch ID</span>
+              </>
+          }
+        </button>
+      )}
+
+      {msg && <p style={{color:T.amberLt,fontSize:13,textAlign:"center",margin:"0 0 16px",fontFamily:"'DM Sans',sans-serif"}}>{msg}</p>}
+
+      {/* Passwort-Fallback */}
+      {(showPw || !bioAvail) && (
+        <div style={{width:"100%",maxWidth:320}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,margin:"0 0 14px"}}>
+            <div style={{flex:1,height:1,background:"rgba(255,255,255,.2)"}}/>
+            <span style={{fontSize:12,color:"rgba(255,255,255,.5)",fontFamily:"'DM Sans',sans-serif"}}>oder mit Passwort</span>
+            <div style={{flex:1,height:1,background:"rgba(255,255,255,.2)"}}/>
+          </div>
+          <div style={{position:"relative",marginBottom:10}}>
+            <input type="password" value={pw} onChange={e=>setPw(e.target.value)}
+              onKeyDown={e=>e.key==="Enter"&&tryPassword()}
+              placeholder="Passwort eingeben" autoFocus
+              style={{width:"100%",boxSizing:"border-box",background:"rgba(255,255,255,.12)",border:`1.5px solid ${pwErr?"#F87171":"rgba(255,255,255,.25)"}`,borderRadius:12,padding:"13px 16px",fontSize:15,color:T.white,outline:"none",fontFamily:"'DM Sans',sans-serif"}}/>
+            {pwErr && <p style={{color:"#FCA5A5",fontSize:12,margin:"6px 0 0",fontFamily:"'DM Sans',sans-serif"}}>{pwErr}</p>}
+          </div>
+          <button onClick={tryPassword} style={{width:"100%",background:T.teal,border:"none",borderRadius:12,padding:"13px",color:T.white,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",boxShadow:`0 4px 16px ${T.teal}50`}}>
+            Anmelden
+          </button>
+        </div>
+      )}
+
+      {bioAvail && !showPw && (
+        <button onClick={()=>setShowPw(true)} style={{marginTop:16,background:"none",border:"none",color:"rgba(255,255,255,.5)",fontSize:13,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+          Lieber Passwort verwenden
+        </button>
+      )}
+    </div>
+  );
+}
+
 function ProfileScreen({user,gear,onLogout,isOffline,lastSync,onOpenGPSR}){
   const [notifOn,setNotifOn]=useState(true);
   const [bioActive,setBioActive]=useState(false);
   const [bioMsg,setBioMsg]=useState("");
-  useEffect(()=>{sLoad("biometric-cred").then(c=>setBioActive(!!c));},[]);
+  const [showAbout,setShowAbout]=useState(false);
+  const [showPrivacy,setShowPrivacy]=useState(false);
+  const [showNotifDetail,setShowNotifDetail]=useState(false);
+  const [showRating,setShowRating]=useState(false);
+
+  useEffect(()=>{
+    sLoad("biometric-cred").then(c=>setBioActive(!!c));
+    sLoad("notif-on",true).then(v=>setNotifOn(v));
+  },[]);
+
   async function toggleBio(){
     try{
-      if(bioActive){ await sDel("biometric-cred"); setBioActive(false); setBioMsg("Biometrie deaktiviert."); }
-      else{
+      if(bioActive){
+        await sDel("biometric-cred"); setBioActive(false); setBioMsg("Face ID deaktiviert.");
+      } else {
         if(!window.PublicKeyCredential){ setBioMsg("Gerät unterstützt keine Biometrie."); return; }
         const challenge=crypto.getRandomValues(new Uint8Array(32));
         const cred=await navigator.credentials.create({publicKey:{challenge,rp:{name:"AlpineRecall",id:window.location.hostname},user:{id:new TextEncoder().encode(user.email),name:user.email,displayName:user.name},pubKeyCredParams:[{alg:-7,type:"public-key"},{alg:-257,type:"public-key"}],authenticatorSelection:{authenticatorAttachment:"platform",userVerification:"required"},timeout:60000}});
@@ -990,19 +1079,46 @@ function ProfileScreen({user,gear,onLogout,isOffline,lastSync,onOpenGPSR}){
         await sSave("biometric-cred",{credId,userId:user.email});
         setBioActive(true); setBioMsg("Face ID / Touch ID aktiviert! ✓");
       }
-    }catch(e){ setBioMsg(e.name==="NotAllowedError"?"Abgebrochen.":"Fehler: "+e.message); }
+    }catch(e){ setBioMsg(e.name==="NotAllowedError"?"Abgebrochen.":"Nicht verfügbar auf diesem Gerät."); }
     setTimeout(()=>setBioMsg(""),4000);
   }
-  const [showAbout,setShowAbout]=useState(false);
-  const exportGear=()=>{const txt=gear.map(g=>`${g.name} (${g.brand}) – EAN: ${g.ean||g.serial} – Kaufdatum: ${g.kaufDatum||"–"} – Status: ${g.status==="recall"?"⚠ Rückruf":"OK"}`).join("\n");const blob=new Blob([txt],{type:"text/plain"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="AlpineRecall_Ausrüstung.txt";a.click();};
+
+  function toggleNotif(){
+    const next=!notifOn; setNotifOn(next); sSave("notif-on",next);
+  }
+
+  function exportGear(){
+    const header="AlpineRecall – Ausrüstungsliste
+Exportiert am "+today()+"
+"+"=".repeat(40)+"
+
+";
+    const body=gear.map((g,i)=>`${i+1}. ${g.name}
+   Hersteller: ${g.brand}
+   Kategorie: ${g.cat}
+   EAN: ${g.ean||"–"}  |  Seriennr.: ${g.serial||"–"}
+   Kaufdatum: ${g.kaufDatum?new Date(g.kaufDatum).toLocaleDateString("de-DE"):"–"}
+   Status: ${g.status==="recall"&&!g.done?"⚠ RÜCKRUF AKTIV":g.done?"✓ Rückruf erledigt":"✓ OK"}
+`).join("
+");
+    const blob=new Blob([header+body],{type:"text/plain;charset=utf-8"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="AlpineRecall_Ausruestung_"+todayISO()+".txt";a.click();
+  }
+
+  function Toggle({on}){
+    return <div style={{width:44,height:26,borderRadius:13,background:on?T.teal:T.s300,position:"relative",transition:"background .25s",flexShrink:0}}>
+      <div style={{position:"absolute",top:3,left:on?21:3,width:20,height:20,borderRadius:"50%",background:T.white,transition:"left .25s",boxShadow:"0 1px 4px rgba(0,0,0,.2)"}}/>
+    </div>;
+  }
+
   const menu=[
-    {i:"law",l:"EU-GPSR Erklärung",s:"Verordnung verständlich erklärt",action:onOpenGPSR,hl:true},
-    {i:"bell",l:"Benachrichtigungen",s:notifOn?"Push-Alarme aktiv":"Deaktiviert",action:()=>setNotifOn(n=>!n),right:()=><div style={{width:42,height:24,borderRadius:12,background:notifOn?T.teal:T.s300,position:"relative",cursor:"pointer",transition:"background .2s"}}><div style={{position:"absolute",top:3,left:notifOn?21:3,width:18,height:18,borderRadius:"50%",background:T.white,transition:"left .2s",boxShadow:"0 1px 4px rgba(0,0,0,.2)"}}/></div>},
-    {i:"fingerprint",l:"Face ID / Touch ID",s:bioActive?"Aktiv – schneller Login":"Für schnellen Login aktivieren",action:toggleBio,right:()=><div style={{width:42,height:24,borderRadius:12,background:bioActive?T.teal:T.s300,position:"relative",cursor:"pointer",transition:"background .2s"}}><div style={{position:"absolute",top:3,left:bioActive?21:3,width:18,height:18,borderRadius:"50%",background:T.white,transition:"left .2s",boxShadow:"0 1px 4px rgba(0,0,0,.2)"}}/></div>},
-    {i:"shield",l:"Datenschutz & DSGVO",s:"Deine Daten, deine Kontrolle"},
-    {i:"export",l:"Ausrüstung exportieren",s:`${gear.length} Artikel als .txt speichern`,action:exportGear},
-    {i:"star",l:"App bewerten",s:"Hilf uns besser zu werden"},
-    {i:"info",l:"Über AlpineRecall",s:"Version 1.0.0 · Hochschule München",action:()=>setShowAbout(true)},
+    {i:"law",      l:"EU-GPSR Erklärung",     s:"Verordnung verständlich erklärt",                     action:onOpenGPSR,    hl:true},
+    {i:"bell",     l:"Benachrichtigungen",     s:notifOn?"Rückruf-Alarme aktiv":"Deaktiviert",          action:toggleNotif,   right:()=><Toggle on={notifOn}/>},
+    {i:"fingerprint",l:"Face ID / Touch ID",  s:bioActive?"Aktiv – wird bei jedem Login verwendet":"Deaktiviert",action:toggleBio,right:()=><Toggle on={bioActive}/>},
+    {i:"shield",   l:"Datenschutz & DSGVO",   s:"Deine Rechte & wie wir deine Daten schützen",         action:()=>setShowPrivacy(true)},
+    {i:"export",   l:"Ausrüstung exportieren", s:`${gear.length} Artikel als Textdatei speichern`,      action:exportGear},
+    {i:"star",     l:"App bewerten",           s:"Feedback hilft uns besser zu werden",                  action:()=>setShowRating(true)},
+    {i:"info",     l:"Über AlpineRecall",      s:"Version 1.0.0 · Hochschule München · SS 2026",        action:()=>setShowAbout(true)},
   ];
   return <div>
     <div style={{background:`linear-gradient(135deg,${T.navy},${T.navyMd})`,padding:"28px 20px 24px"}}>
@@ -1035,18 +1151,51 @@ function ProfileScreen({user,gear,onLogout,isOffline,lastSync,onOpenGPSR}){
         <div style={{width:56,height:56,background:`linear-gradient(135deg,${T.teal},${T.navy})`,borderRadius:16,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}><Icon n="mountain" s={26} c={T.white}/></div>
         <h3 style={{margin:"0 0 4px",fontSize:20,fontWeight:700,color:T.navy,fontFamily:"'DM Serif Display',serif"}}>AlpineRecall</h3>
         <p style={{margin:"0 0 16px",fontSize:13,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>Version 1.0.0 · Hochschule München · SS 2026</p>
-        {[["Entwickelt im Rahmen von","Entwicklung einer Geschäftsidee"],["Technologie","React PWA · WebAuthn · BarcodeDetector"],["Datenschutz","Alle Daten bleiben auf deinem Gerät"],["Kontakt","alpinerecall@hm.edu"]].map(([k,v],i)=>(
+        {[["Entwickelt im Rahmen von","Entwicklung einer Geschäftsidee – Real Projects"],["Technologie","React PWA · WebAuthn · BarcodeDetector API"],["Datenschutz","Alle Daten bleiben auf deinem Gerät"],["Push-Notifications","Web Push API · VAPID"],["Kontakt","alpinerecall@hm.edu"]].map(([k,v],i)=>(
           <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"9px 0",borderBottom:`1px solid ${T.s200}`,textAlign:"left"}}><span style={{fontSize:12,color:T.s500,fontFamily:"'DM Sans',sans-serif"}}>{k}</span><span style={{fontSize:12,fontWeight:600,color:T.navy,fontFamily:"'DM Sans',sans-serif",textAlign:"right",maxWidth:"55%"}}>{v}</span></div>
         ))}
         <div style={{height:16}}/>
       </div>
     </Sheet>}
+
+    {/* Datenschutz Modal */}
+    {showPrivacy&&<Sheet onClose={()=>setShowPrivacy(false)}>
+      <div style={{padding:"20px 20px 0"}}>
+        <h3 style={{margin:"0 0 16px",fontSize:18,fontWeight:700,color:T.navy,fontFamily:"'DM Serif Display',serif"}}>🔒 Datenschutz & DSGVO</h3>
+        {[
+          {icon:"📱",title:"Lokale Datenspeicherung",text:"Alle deine Daten – Ausrüstung, Kaufdaten, Seriennummern – werden ausschließlich auf deinem Gerät gespeichert (localStorage). Nichts wird an externe Server übertragen."},
+          {icon:"🚫",title:"Keine Weitergabe",text:"Deine persönlichen Daten werden niemals an Dritte verkauft oder weitergegeben. Keine Werbung, kein Tracking."},
+          {icon:"🔐",title:"Biometrische Daten",text:"Face ID / Touch ID nutzt die WebAuthn-API des Browsers. Biometrische Daten verlassen deinen Chip nie – wir speichern nur einen verschlüsselten Schlüssel."},
+          {icon:"🗑️",title:"Recht auf Löschung",text:"Du kannst jederzeit alle deine Daten löschen indem du dich abmeldest und die App-Daten im Browser löschst. Vollständig DSGVO-konform nach Art. 17."},
+          {icon:"📧",title:"Kontakt",text:"Bei Fragen zum Datenschutz: alpinerecall@hm.edu"},
+        ].map((p,i)=><div key={i} style={{background:T.s100,borderRadius:12,padding:"12px 14px",marginBottom:10}}>
+          <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+            <span style={{fontSize:20,flexShrink:0}}>{p.icon}</span>
+            <div><p style={{margin:"0 0 4px",fontSize:13,fontWeight:700,color:T.navy,fontFamily:"'DM Sans',sans-serif"}}>{p.title}</p><p style={{margin:0,fontSize:12,color:T.s500,lineHeight:1.6,fontFamily:"'DM Sans',sans-serif"}}>{p.text}</p></div>
+          </div>
+        </div>)}
+        <div style={{height:8}}/>
+      </div>
+    </Sheet>}
+
+    {/* Bewertungs Modal */}
+    {showRating&&<Sheet onClose={()=>setShowRating(false)}>
+      <div style={{padding:"20px 20px 0",textAlign:"center"}}>
+        <div style={{fontSize:52,marginBottom:12}}>⭐</div>
+        <h3 style={{margin:"0 0 8px",fontSize:20,fontWeight:700,color:T.navy,fontFamily:"'DM Serif Display',serif"}}>App bewerten</h3>
+        <p style={{margin:"0 0 20px",fontSize:13,color:T.s500,lineHeight:1.6,fontFamily:"'DM Sans',sans-serif"}}>Dein Feedback hilft uns AlpineRecall zu verbessern und mehr Bergsportler sicherer zu machen.</p>
+        <div style={{display:"flex",justifyContent:"center",gap:8,marginBottom:20}}>
+          {[1,2,3,4,5].map(s=><button key={s} onClick={()=>{sSave("rating",s);setShowRating(false);}} style={{width:52,height:52,borderRadius:14,background:T.amberLt,border:`1.5px solid ${T.amber}30`,fontSize:24,cursor:"pointer"}}>{"⭐"}</button>)}
+        </div>
+        <div style={{background:T.tealLt,border:`1px solid ${T.teal}30`,borderRadius:12,padding:"10px 14px",marginBottom:8}}>
+          <p style={{margin:0,fontSize:12,color:T.teal,fontFamily:"'DM Sans',sans-serif"}}>📧 Ausführliches Feedback: <strong>alpinerecall@hm.edu</strong></p>
+        </div>
+        <div style={{height:8}}/>
+      </div>
+    </Sheet>}
   </div>;
 }
 
-// ═══ AUTH SYSTEM – komplett neu ═══════════════════════════════════════════════
-
-// ── Biometrie-Hilfsfunktionen ─────────────────────────────────────────────────
 async function bioIsAvailable() {
   if (!window.PublicKeyCredential) return false;
   try { return await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable(); }
@@ -1078,7 +1227,6 @@ async function bioVerify(credId) {
   return true;
 }
 
-// ── Face ID Setup Modal (nach Registrierung) ──────────────────────────────────
 function FaceIDSetupModal({ user, onDone }) {
   const [phase,   setPhase]   = useState("ask");   // ask | loading | success | error
   const [errMsg,  setErrMsg]  = useState("");
@@ -1140,15 +1288,12 @@ function FaceIDSetupModal({ user, onDone }) {
   );
 }
 
-// ── Haupt-Auth-Screen ─────────────────────────────────────────────────────────
 function AuthScreen({ onLogin }) {
-  // Erkenne ob User bereits registriert ist
   const [phase, setPhase]       = useState("checking");  // checking | firstTime | login | register
   const [savedEmail, setSavedEmail] = useState("");
   const [hasBioCred, setHasBioCred] = useState(false);
   const [bioAvail,   setBioAvail]   = useState(false);
 
-  // Felder
   const [name,  setName]  = useState("");
   const [email, setEmail] = useState("");
   const [pw,    setPw]    = useState("");
@@ -1162,13 +1307,11 @@ function AuthScreen({ onLogin }) {
   useEffect(() => {
     setTimeout(() => setMounted(true), 80);
     (async () => {
-      // Prüfe ob schon registriert
       const registered = await sLoad("registered-users", {}) || {};
       const lastEmail  = await sLoad("last-login-email", "");
       const cred       = await sLoad("biometric-cred");
       const avail      = await bioIsAvailable();
 
-      // Demo-User zählen als "registriert"
       const allEmails = [...Object.keys(registered), ...Object.keys(DEMO_USERS)];
       const hasRegistered = allEmails.length > Object.keys(DEMO_USERS).length || lastEmail;
 
@@ -1185,7 +1328,6 @@ function AuthScreen({ onLogin }) {
     })();
   }, []);
 
-  // ── Registrierung ──────────────────────────────────────────────────────────
   async function doRegister() {
     const e = {};
     if (!name.trim())          e.name  = "Name erforderlich";
@@ -1217,7 +1359,6 @@ function AuthScreen({ onLogin }) {
     onLogin(userData);
   }
 
-  // ── Login mit E-Mail + Passwort ───────────────────────────────────────────
   async function doLogin() {
     const e = {};
     if (!email.includes("@")) e.email = "Gültige E-Mail erforderlich";
@@ -1252,20 +1393,16 @@ function AuthScreen({ onLogin }) {
     setLoading(false);
   }
 
-  // ── Login mit Face ID ─────────────────────────────────────────────────────
   async function doFaceID() {
     setBioLoading(true); setBioMsg("");
     try {
       const cred = await sLoad("biometric-cred");
       if (!cred) { setBioMsg("Noch nicht eingerichtet."); setBioLoading(false); return; }
 
-      // WebAuthn Verifikation
       await bioVerify(cred.credId);
 
-      // User-Daten wiederherstellen (auch wenn auth-user gelöscht wurde)
       let u = await sLoad("auth-user");
       if (!u) {
-        // Aus registered-users rekonstruieren
         const registered = await sLoad("registered-users", {}) || {};
         const demo       = DEMO_USERS[cred.userId];
         const regUser    = registered[cred.userId];
@@ -1287,7 +1424,6 @@ function AuthScreen({ onLogin }) {
     }
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
   if (phase === "checking") return (
     <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",background:`linear-gradient(160deg,${T.navy},${T.tealDk})`}}>
       <Spinner size={36} color={T.tealLt}/>
@@ -1376,10 +1512,6 @@ function AuthScreen({ onLogin }) {
   );
 }
 
-
-// ════════════════════════════════════════════════════════════════════════
-// PATCH 1: SwipeableSheet – ersetzt Sheet, wischbar nach unten
-// ════════════════════════════════════════════════════════════════════════
 function Sheet({children, onClose}) {
   const sheetRef = useRef(null);
   const startY   = useRef(0);
@@ -1421,9 +1553,6 @@ function Sheet({children, onClose}) {
   );
 }
 
-// ════════════════════════════════════════════════════════════════════════
-// PATCH 2: Profilbild-Komponente
-// ════════════════════════════════════════════════════════════════════════
 function ProfilePicture({initials, onUpdate}) {
   const [img, setImg] = useState(null);
   const inputRef = useRef(null);
@@ -1475,15 +1604,7 @@ function ProfilePicture({initials, onUpdate}) {
   );
 }
 
-// ════════════════════════════════════════════════════════════════════════
-// PATCH 3: Händler-Karte (bei Rückruf-Details)
-// ════════════════════════════════════════════════════════════════════════
-const DEMO_DEALERS = [
-  { name:"Sporthaus Schuster",     dist:"0.4 km", addr:"Rosenstr. 3, München",      open:"Mo–Sa 10–20 Uhr", phone:"089 23 60 20" },
-  { name:"Sport Bittl",            dist:"1.2 km", addr:"Karl-Marx-Ring 1, München", open:"Mo–Sa 10–19 Uhr", phone:"089 42 72 20" },
-  { name:"DAV Shop München",       dist:"1.8 km", addr:"Bayerstr. 21, München",     open:"Mo–Fr 9–18 Uhr",  phone:"089 14 00 30" },
-  { name:"Globetrotter München",   dist:"2.1 km", addr:"Isartorplatz 8–10",         open:"Mo–Sa 10–20 Uhr", phone:"089 20 00 35 10" },
-];
+const DEMO_DEALERS=[{name:"Sporthaus Schuster",dist:"0.4 km",addr:"Rosenstr. 3, München",open:"Mo–Sa 10–20 Uhr"},{name:"Sport Bittl",dist:"1.2 km",addr:"Karl-Marx-Ring 1, München",open:"Mo–Sa 10–19 Uhr"},{name:"DAV Shop München",dist:"1.8 km",addr:"Bayerstr. 21, München",open:"Mo–Fr 9–18 Uhr"},{name:"Globetrotter München",dist:"2.1 km",addr:"Isartorplatz 8–10",open:"Mo–Sa 10–20 Uhr"}];
 
 function DealerMap({recall}) {
   const [expanded, setExpanded] = useState(false);
@@ -1505,20 +1626,13 @@ function DealerMap({recall}) {
         <div style={{transform:expanded?"rotate(90deg)":"rotate(0deg)",transition:"transform .2s"}}><Icon n="chevron" s={16} c={T.s400}/></div>
       </div>
 
-      {/* Karte (OpenStreetMap Embed) */}
       {expanded && (
         <div>
-          <div style={{position:"relative",height:180,overflow:"hidden"}}>
-            <iframe
-              title="Händler-Karte"
-              src="https://www.openstreetmap.org/export/embed.html?bbox=11.5594%2C48.1274%2C11.5994%2C48.1474&layer=mapnik&marker=48.1374%2C11.5794"
-              style={{width:"100%",height:"100%",border:"none"}}
-              loading="lazy"
-            />
-            <div style={{position:"absolute",bottom:8,right:8,background:T.white,borderRadius:8,padding:"4px 8px",boxShadow:"0 2px 8px rgba(0,0,0,.15)"}}>
-              <p style={{margin:0,fontSize:10,color:T.s500,fontFamily:"'DM Sans',sans-serif"}}>© OpenStreetMap</p>
-            </div>
+          <div style={{background:`linear-gradient(135deg,${T.navy}10,${T.teal}10)`,margin:"0 16px 0",borderRadius:10,padding:"10px 14px",marginBottom:0,display:"flex",alignItems:"center",gap:8}}>
+            <Icon n="map" s={16} c={T.teal}/>
+            <p style={{margin:0,fontSize:12,color:T.teal,fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>Tippe auf einen Händler um ihn in Karten zu öffnen</p>
           </div>
+          <div>
 
           {/* Händlerliste */}
           <div style={{padding:"0 16px 8px",display:"flex",flexDirection:"column",gap:8,marginTop:8}}>
@@ -1552,14 +1666,12 @@ function DealerMap({recall}) {
     </div>
   );
 }
-// ════════════════════════════════════════════════════════════════════════
-// HAUPT-APP v8 – iPhone 13 optimiert, alle Fixes
-// ════════════════════════════════════════════════════════════════════════
 export default function AlpineRecallApp(){
   const [user,setUser]=useState(null);
   const [gear,setGear]=useState([]);
   const [tab,setTab]=useState("home");
   const [loaded,setLoaded]=useState(false);
+  const [locked,setLocked]=useState(false); // LockScreen beim App-Öffnen
   const [toast,setToast]=useState(null);
   const [isOffline,setIsOffline]=useState(false);
   const [lastSync,setLastSync]=useState(null);
@@ -1571,7 +1683,6 @@ export default function AlpineRecallApp(){
     link.href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600;700;800&display=swap";
     link.rel="stylesheet";document.head.appendChild(link);
 
-    // Vollbild-Viewport – verhindert Zoom-Probleme
     let vm = document.querySelector('meta[name="viewport"]');
     if(!vm){ vm=document.createElement("meta"); vm.name="viewport"; document.head.appendChild(vm); }
     vm.content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,viewport-fit=cover";
@@ -1590,7 +1701,8 @@ export default function AlpineRecallApp(){
 
   useEffect(()=>{
     (async()=>{
-      const u=await sLoad("auth-user"); if(u) setUser(u);
+      const u=await sLoad("auth-user");
+      if(u){ setUser(u); setLocked(true); } // Bekannter User → erst sperren
       const g=await sLoad("gear-items"); setGear(g||INIT_GEAR);
       try{await sSave("recall-db-cache",RECALL_DB);await sSave("product-db-cache",PRODUCT_DB);}catch{}
       const ls=await sLoad("last-sync"); if(ls) setLastSync(ls);
@@ -1642,7 +1754,6 @@ export default function AlpineRecallApp(){
       display:"flex", flexDirection:"column",
       background:T.s100,
       fontFamily:"'DM Sans',sans-serif",
-      // Wichtig: Safe-Area nur am TOP (unter der Notch)
       paddingTop:"env(safe-area-inset-top,0px)",
       overflow:"hidden",
       WebkitFontSmoothing:"antialiased",
@@ -1686,7 +1797,11 @@ export default function AlpineRecallApp(){
       {/* ── AUTH ──────────────────────────────────────────────────────────── */}
       {!user ? (
         <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-          <AuthScreen onLogin={async u=>{ setUser(u); const hasCred=await sLoad("biometric-cred"); const shown=await sLoad("bio-setup-shown"); if(!hasCred&&!shown) setShowBioSetup(true); await sSave("bio-setup-shown",true); }}/>
+          <AuthScreen onLogin={async u=>{ setUser(u); setLocked(false); const hasCred=await sLoad("biometric-cred"); const shown=await sLoad("bio-setup-shown"); if(!hasCred&&!shown) setShowBioSetup(true); await sSave("bio-setup-shown",true); }}/>
+        </div>
+      ) : locked ? (
+        <div style={{flex:1}}>
+          <LockScreen user={user} onUnlock={()=>setLocked(false)}/>
         </div>
       ) : (
         <>
@@ -1757,7 +1872,6 @@ export default function AlpineRecallApp(){
             display:"flex",
             flexShrink:0,
             boxShadow:"0 -2px 12px rgba(0,0,0,0.07)",
-            // Safe-Area unten (Home-Indicator iPhone)
             paddingBottom:"env(safe-area-inset-bottom,0px)",
           }}>
             {TABS.map(t=>{
