@@ -1088,23 +1088,12 @@ function ProfileScreen({user,gear,onLogout,isOffline,lastSync,onOpenGPSR}){
   }
 
   function exportGear(){
-    const header="AlpineRecall – Ausrüstungsliste
-Exportiert am "+today()+"
-"+"=".repeat(40)+"
-
-";
-    const body=gear.map((g,i)=>`${i+1}. ${g.name}
-   Hersteller: ${g.brand}
-   Kategorie: ${g.cat}
-   EAN: ${g.ean||"–"}  |  Seriennr.: ${g.serial||"–"}
-   Kaufdatum: ${g.kaufDatum?new Date(g.kaufDatum).toLocaleDateString("de-DE"):"–"}
-   Status: ${g.status==="recall"&&!g.done?"⚠ RÜCKRUF AKTIV":g.done?"✓ Rückruf erledigt":"✓ OK"}
-`).join("
-");
+    const sep="=".repeat(40);
+    const header=`AlpineRecall Ausruestungsliste\nExportiert am ${today()}\n${sep}\n\n`;
+    const body=gear.map((g,i)=>`${i+1}. ${g.name}\n   Hersteller: ${g.brand}\n   Kategorie: ${g.cat}\n   EAN: ${g.ean||"-"}  Seriennr.: ${g.serial||"-"}\n   Kaufdatum: ${g.kaufDatum?new Date(g.kaufDatum).toLocaleDateString("de-DE"):"-"}\n   Status: ${g.status==="recall"&&!g.done?"RUECKRUF AKTIV":g.done?"Erledigt":"OK"}\n`).join("\n");
     const blob=new Blob([header+body],{type:"text/plain;charset=utf-8"});
     const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="AlpineRecall_Ausruestung_"+todayISO()+".txt";a.click();
   }
-
   function Toggle({on}){
     return <div style={{width:44,height:26,borderRadius:13,background:on?T.teal:T.s300,position:"relative",transition:"background .25s",flexShrink:0}}>
       <div style={{position:"absolute",top:3,left:on?21:3,width:20,height:20,borderRadius:"50%",background:T.white,transition:"left .25s",boxShadow:"0 1px 4px rgba(0,0,0,.2)"}}/>
