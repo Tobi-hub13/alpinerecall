@@ -231,7 +231,53 @@ function ScanResult({rawCode,scanMode,gear,onAdd,onClose,prefillDate}){
   const [form,setForm]=useState({name:"",brand:"",cat:"Helm"});
   const [kaufDatum,setKaufDatum]=useState(prefillDate||"");
   const CATS=["Helm","Seil","Karabiner","LVS-Gerät","Gurt","Pickel","Steigeisen","Sicherung","Rucksack","Sonstiges"];
-  useEffect(()=>{const t=setTimeout(()=>{const p=PRODUCT_DB[rawCode];setProduct(p?{...p,code:rawCode}:null);setPhase(p?"found":"notfound");},900);return()=>clearTimeout(t);},[rawCode]);
+  useEffect(()=>{
+    async function lookup(){
+      // 1. Erst lokale Demo-DB prüfen
+      const local = PRODUCT_DB[rawCode];
+      if(local){ setProduct({...local,code:rawCode}); setPhase("found"); return; }
+
+      // 2. Recall-DB direkt (Seriennummer)
+      if(RECALL_DB[rawCode]){ setProduct({name:rawCode,brand:"Unbekannt",cat:"Sonstiges",code:rawCode,recall:true}); setPhase("found"); return; }
+
+      // 3. Echte EAN-Datenbank (UPC ItemDB) – nur für Barcodes
+      if(scanMode==="barcode" && /^\d{8,14}$/.test(rawCode)){
+        try{
+          const res = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${rawCode}`);
+          const data = await res.json();
+          if(data.code==="OK" && data.items && data.items.length>0){
+            const item = data.items[0];
+            // Kategorie aus dem Titel ableiten
+            const title = (item.title||"").toLowerCase();
+            let cat = "Sonstiges";
+            if(title.includes("helm")||title.includes("helmet")) cat="Helm";
+            else if(title.includes("seil")||title.includes("rope")) cat="Seil";
+            else if(title.includes("karabiner")||title.includes("carabiner")) cat="Karabiner";
+            else if(title.includes("gurt")||title.includes("harness")) cat="Gurt";
+            else if(title.includes("pickel")||title.includes("axe")) cat="Pickel";
+            else if(title.includes("rucksack")||title.includes("backpack")) cat="Rucksack";
+            else if(title.includes("lvs")||title.includes("beacon")||title.includes("avalanche")) cat="LVS-Gerät";
+            else if(title.includes("steigeisen")||title.includes("crampon")) cat="Steigeisen";
+            setProduct({
+              name: item.title || rawCode,
+              brand: item.brand || "Unbekannt",
+              cat,
+              code: rawCode,
+              ean: rawCode,
+              imageUrl: item.images?.[0] || null,
+              fromApi: true,
+            });
+            setPhase("found");
+            return;
+          }
+        }catch(e){ console.log("API Fehler:", e); }
+      }
+
+      // 4. Produkt nicht gefunden
+      setPhase("notfound");
+    }
+    lookup();
+  },[rawCode, scanMode]);
   const owned=product&&gear.some(g=>g.ean===rawCode||g.serial===rawCode);
   const recall=RECALL_DB[rawCode];
   const modeLabel={barcode:"Barcode",qr:"QR-Code",serial:"Seriennummer"};
@@ -241,11 +287,21 @@ function ScanResult({rawCode,scanMode,gear,onAdd,onClose,prefillDate}){
       <div style={{background:T.tealLt,borderRadius:8,padding:"4px 10px",display:"flex",alignItems:"center",gap:6}}><Icon n={scanMode==="qr"?"qr":scanMode==="serial"?"text":"barcode"} s={13} c={T.teal}/><span style={{fontSize:11,fontWeight:700,color:T.teal,fontFamily:"'DM Sans',sans-serif"}}>Via {modeLabel[scanMode]||scanMode}</span></div>
       <span style={{fontSize:11,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>{rawCode}</span>
     </div>
-    {phase==="searching"&&<div style={{textAlign:"center",padding:"32px 0"}}><Spinner/><p style={{marginTop:16,fontSize:14,fontWeight:600,color:T.navy,fontFamily:"'DM Serif Display',serif"}}>Suche in Datenbank…</p></div>}
+    {phase==="searching"&&<div style={{textAlign:"center",padding:"32px 0"}}><Spinner/>
+        <p style={{marginTop:16,fontSize:14,fontWeight:600,color:T.navy,fontFamily:"'DM Serif Display',serif"}}>Suche in Datenbank…</p>
+        {scanMode==="barcode"&&<p style={{margin:"6px 0 0",fontSize:12,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>Prüfe auch globale Produktdatenbank</p>}
+      </div>}
     {phase==="found"&&product&&<>
       {recall&&<div style={{background:`linear-gradient(135deg,${T.red},#B91C1C)`,borderRadius:14,padding:"14px 16px",marginBottom:14,color:T.white}}><div style={{display:"flex",gap:8,alignItems:"center",marginBottom:6}}><Icon n="alert" s={16} c={T.white}/><span style={{fontSize:13,fontWeight:700,fontFamily:"'DM Sans',sans-serif"}}>Aktiver Rückruf!</span></div><p style={{margin:0,fontSize:12,opacity:.9,lineHeight:1.5,fontFamily:"'DM Sans',sans-serif"}}>{recall.desc.slice(0,90)}…</p></div>}
       <div style={{background:T.s100,borderRadius:16,padding:"16px",marginBottom:14}}>
-        <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:12}}><div style={{width:50,height:50,borderRadius:14,background:catColor(product.cat)+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>{catIcon(product.cat)}</div><div><p style={{margin:"0 0 2px",fontSize:15,fontWeight:700,color:T.navy,fontFamily:"'DM Sans',sans-serif"}}>{product.name}</p><p style={{margin:0,fontSize:12,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>{product.brand} · {product.cat}</p></div></div>
+        {product.fromApi&&<div style={{background:T.tealLt,borderRadius:8,padding:"4px 10px",display:"inline-flex",alignItems:"center",gap:5,marginBottom:10}}><Icon n="checkCircle" s={12} c={T.teal}/><span style={{fontSize:11,fontWeight:700,color:T.teal,fontFamily:"'DM Sans',sans-serif"}}>Produkt automatisch erkannt</span></div>}
+        <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:12}}>
+          {product.imageUrl
+            ? <img src={product.imageUrl} alt={product.name} style={{width:54,height:54,borderRadius:12,objectFit:"contain",background:T.white,border:`1px solid ${T.s200}`,flexShrink:0}}/>
+            : <div style={{width:50,height:50,borderRadius:14,background:catColor(product.cat)+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>{catIcon(product.cat)}</div>
+          }
+          <div><p style={{margin:"0 0 2px",fontSize:15,fontWeight:700,color:T.navy,fontFamily:"'DM Sans',sans-serif"}}>{product.name}</p><p style={{margin:0,fontSize:12,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>{product.brand} · {product.cat}</p></div>
+        </div>
         <div style={{borderTop:`1px solid ${T.s200}`,paddingTop:12}}>
           <label style={{display:"block",fontSize:12,fontWeight:600,color:T.s500,marginBottom:6,fontFamily:"'DM Sans',sans-serif"}}>📅 Kaufdatum (für Ablaufdatum)</label>
           <input type="date" value={kaufDatum} onChange={e=>setKaufDatum(e.target.value)} max={todayISO()} style={{width:"100%",boxSizing:"border-box",border:`1.5px solid ${T.s200}`,borderRadius:10,padding:"9px 12px",fontSize:13,outline:"none",fontFamily:"'DM Sans',sans-serif",color:T.navy}} onFocus={e=>e.target.style.borderColor=T.teal} onBlur={e=>e.target.style.borderColor=T.s200}/>
@@ -1587,7 +1643,7 @@ function ProfilePicture({initials, onUpdate}) {
       }}>
         <Icon n="camera" s={11} c={T.white}/>
       </div>
-      <input ref={inputRef} type="file" accept="image/*" capture="user"
+      <input ref={inputRef} type="file" accept="image/*"
         onChange={handleFile} style={{display:"none"}}/>
     </div>
   );
@@ -1617,9 +1673,16 @@ function DealerMap({recall}) {
 
       {expanded && (
         <div>
-          <div style={{background:`linear-gradient(135deg,${T.navy}10,${T.teal}10)`,margin:"0 16px 0",borderRadius:10,padding:"10px 14px",marginBottom:0,display:"flex",alignItems:"center",gap:8}}>
-            <Icon n="map" s={16} c={T.teal}/>
-            <p style={{margin:0,fontSize:12,color:T.teal,fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>Tippe auf einen Händler um ihn in Karten zu öffnen</p>
+          <div style={{position:"relative",height:180,overflow:"hidden",margin:"0 16px 8px",borderRadius:12}}>
+            <iframe
+              title="Händler-Karte"
+              src="https://www.openstreetmap.org/export/embed.html?bbox=11.5594%2C48.1274%2C11.5994%2C48.1474&layer=mapnik&marker=48.1374%2C11.5794"
+              style={{width:"100%",height:"100%",border:"none"}}
+              loading="lazy"
+            />
+            <div style={{position:"absolute",bottom:6,right:6,background:"rgba(255,255,255,0.9)",borderRadius:6,padding:"3px 7px"}}>
+              <p style={{margin:0,fontSize:10,color:T.s500,fontFamily:"'DM Sans',sans-serif"}}>© OpenStreetMap</p>
+            </div>
           </div>
           <div>
 
@@ -1651,6 +1714,7 @@ function DealerMap({recall}) {
             </div>
           </div>
         </div>
+      </div>
       )}
     </div>
   );
