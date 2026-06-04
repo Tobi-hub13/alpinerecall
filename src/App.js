@@ -132,6 +132,15 @@ function Icon({n,s=22,c="currentColor"}){
   return null;
 }
 
+// ── App-Logo Komponente – nutzt das echte Icon aus public/icons/ ─────────────
+function AppLogo({size=30, style:extra={}}){
+  return <img
+    src="/icons/icon-192.png"
+    alt="AlpineRecall"
+    style={{width:size, height:size, objectFit:"contain", borderRadius:size*0.22, ...extra}}
+  />;
+}
+
 function Btn({label,icon,onClick,variant="primary",disabled=false,full=false,small=false}){
   const ST={primary:{bg:T.teal,fg:T.white,sh:`0 4px 14px ${T.teal}40`},navy:{bg:T.navy,fg:T.white,sh:`0 4px 14px ${T.navy}30`},danger:{bg:T.red,fg:T.white,sh:"none"},ghost:{bg:T.white,fg:T.s500,sh:"none",bd:`1.5px solid ${T.s200}`},purple:{bg:T.purple,fg:T.white,sh:`0 4px 14px ${T.purple}40`},amber:{bg:T.amber,fg:T.white,sh:"none"}}[variant]||{bg:T.teal,fg:T.white,sh:"none"};
   return <button onClick={onClick} disabled={disabled} onMouseDown={e=>{if(!disabled)e.currentTarget.style.transform="scale(0.97)"}} onMouseUp={e=>{e.currentTarget.style.transform=""}} style={{width:full?"100%":undefined,background:disabled?T.s200:ST.bg,color:disabled?T.s400:ST.fg,border:ST.bd||"none",borderRadius:14,cursor:disabled?"not-allowed":"pointer",padding:small?"8px 14px":"13px 20px",fontSize:small?13:14,fontWeight:700,fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:7,transition:"opacity .15s,transform .1s",boxShadow:disabled?"none":ST.sh}}>{icon&&<Icon n={icon} s={small?14:16} c={disabled?T.s400:ST.fg}/>}{label}</button>;
@@ -1047,8 +1056,8 @@ function LockScreen({ user, onUnlock }) {
 
       {/* App-Logo */}
       <div style={{marginBottom:32,textAlign:"center"}}>
-        <div style={{width:72,height:72,background:`linear-gradient(135deg,${T.teal},${T.tealDk})`,borderRadius:22,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px",boxShadow:`0 8px 32px ${T.teal}50`}}>
-          <Icon n="mountain" s={34} c={T.white}/>
+        <div style={{width:72,height:72,borderRadius:22,overflow:"hidden",margin:"0 auto 14px",boxShadow:`0 8px 32px ${T.teal}50`}}>
+          <AppLogo size={72}/>
         </div>
         <h1 style={{margin:"0 0 4px",fontSize:22,fontWeight:700,color:T.white,fontFamily:"'DM Serif Display',serif"}}>AlpineRecall</h1>
         <p style={{margin:0,fontSize:13,color:"rgba(255,255,255,.6)",fontFamily:"'DM Sans',sans-serif"}}>Willkommen zurück, {user.name.split(" ")[0]}</p>
@@ -1193,7 +1202,7 @@ function ProfileScreen({user,gear,onLogout,isOffline,lastSync,onOpenGPSR}){
     </div>
     {showAbout&&<Sheet onClose={()=>setShowAbout(false)}>
       <div style={{padding:"20px 20px 0",textAlign:"center"}}>
-        <div style={{width:56,height:56,background:`linear-gradient(135deg,${T.teal},${T.navy})`,borderRadius:16,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}><Icon n="mountain" s={26} c={T.white}/></div>
+        <div style={{width:56,height:56,borderRadius:16,overflow:"hidden",margin:"0 auto 14px",boxShadow:`0 4px 16px ${T.teal}40`}}><AppLogo size={56}/></div>
         <h3 style={{margin:"0 0 4px",fontSize:20,fontWeight:700,color:T.navy,fontFamily:"'DM Serif Display',serif"}}>AlpineRecall</h3>
         <p style={{margin:"0 0 16px",fontSize:13,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>Version 1.0.0 · Hochschule München · SS 2026</p>
         {[["Entwickelt im Rahmen von","Entwicklung einer Geschäftsidee – Real Projects"],["Technologie","React PWA · WebAuthn · BarcodeDetector API"],["Datenschutz","Alle Daten bleiben auf deinem Gerät"],["Push-Notifications","Web Push API · VAPID"],["Kontakt","alpinerecall@hm.edu"]].map(([k,v],i)=>(
@@ -1480,8 +1489,8 @@ function AuthScreen({ onLogin }) {
 
       {/* Logo-Bereich */}
       <div style={{padding:"52px 32px 28px",textAlign:"center"}}>
-        <div style={{width:64,height:64,background:`linear-gradient(135deg,${T.teal},${T.tealDk})`,borderRadius:20,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",boxShadow:`0 8px 32px ${T.teal}50`}}>
-          <Icon n="mountain" s={30} c={T.white}/>
+        <div style={{width:64,height:64,borderRadius:20,overflow:"hidden",margin:"0 auto 16px",boxShadow:`0 8px 32px ${T.teal}50`}}>
+          <AppLogo size={64}/>
         </div>
         <h1 style={{margin:"0 0 6px",fontSize:26,fontWeight:700,color:T.white,fontFamily:"'DM Serif Display',serif"}}>AlpineRecall</h1>
         <p style={{margin:0,fontSize:13,color:"#93C5FD",fontFamily:"'DM Sans',sans-serif"}}>
@@ -1793,7 +1802,7 @@ export default function AlpineRecallApp(){
       <style>{`body{margin:0;overflow:hidden;}`}</style>
       <div style={{textAlign:"center"}}>
         <div style={{width:60,height:60,background:`linear-gradient(135deg,${T.teal},${T.tealDk})`,borderRadius:18,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px",boxShadow:`0 8px 32px ${T.teal}50`}}>
-          <Icon n="mountain" s={28} c={T.white}/>
+          <AppLogo size={60}/>
         </div>
         <Spinner size={36} color={T.tealLt}/>
         <p style={{margin:"14px 0 0",fontSize:14,color:T.tealLt,fontFamily:"'DM Sans',sans-serif",fontWeight:500}}>AlpineRecall lädt…</p>
@@ -1866,8 +1875,8 @@ export default function AlpineRecallApp(){
             boxShadow:"0 1px 6px rgba(0,0,0,0.06)",
           }}>
             <div style={{display:"flex",alignItems:"center",gap:9}}>
-              <div style={{width:30,height:30,background:`linear-gradient(135deg,${T.teal},${T.navy})`,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                <Icon n="mountain" s={15} c={T.white}/>
+              <div style={{width:30,height:30,borderRadius:9,overflow:"hidden"}}>
+                <AppLogo size={30}/>
               </div>
               <span style={{fontSize:18,fontWeight:700,color:T.navy,fontFamily:"'DM Serif Display',serif",letterSpacing:"-0.3px"}}>AlpineRecall</span>
             </div>
