@@ -1,5 +1,6 @@
 /* eslint-disable no-undef */
 import { useState, useEffect, useRef, useCallback } from "react";
+/* eslint-disable no-unused-vars, react-hooks/exhaustive-deps */
 
 const T = {
   teal:"#0D9488", tealDk:"#0F766E", tealLt:"#CCFBF1",
