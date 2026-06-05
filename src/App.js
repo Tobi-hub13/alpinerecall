@@ -1,4 +1,4 @@
-/* eslint-disable */
+/* eslint-disable no-undef */
 import { useState, useEffect, useRef, useCallback } from "react";
 
 const T = {
@@ -1871,7 +1871,7 @@ export default function AlpineRecallApp(){
   },[]);
 
   async function saveGear(g){setGear(g);await sSave("gear-items",g);const ts=new Date().toISOString();await sSave("last-sync",ts);setLastSync(ts);}
-  const addItem=item=>saveGear([...gear,item]);
+  const addItem=async item=>{ saveGear([...gear,item]); if(item.ean&&user&&user.email){ fetch("https://alpinerecall-backend.vercel.app/api/register-scan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({userId:user.email,ean:item.ean})}).catch(()=>{}); } };
   const deleteItem=id=>saveGear(gear.filter(g=>g.id!==id));
   const markDone=id=>saveGear(gear.map(g=>g.id===id?{...g,done:true}:g));
   async function logout(){try{await sDel("auth-user");}catch{}setUser(null);setTab("home");}
@@ -1957,7 +1957,7 @@ export default function AlpineRecallApp(){
       {/* ── AUTH ──────────────────────────────────────────────────────────── */}
       {!user ? (
         <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-          <AuthScreen onLogin={async u=>{ setUser(u); setLocked(false); const hasCred=await sLoad("biometric-cred"); const shown=await sLoad("bio-setup-shown"); if(!hasCred&&!shown) setShowBioSetup(true); await sSave("bio-setup-shown",true); }}/>
+          <AuthScreen onLogin={async u=>{ setUser(u); setLocked(false); const hasCred=await sLoad("biometric-cred"); const shown=await sLoad("bio-setup-shown"); if(!hasCred&&!shown) setShowBioSetup(true); await sSave("bio-setup-shown",true); if(window.OneSignal&&u.email){setTimeout(async()=>{try{const playerId=await window.OneSignal.User.PushSubscription.id;if(playerId){await fetch("https://alpinerecall-backend.vercel.app/api/register-user",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({userId:u.email,playerId})}).catch(()=>{});}}catch(e){console.warn("OneSignal error:",e);}},500);} }}/>
         </div>
       ) : locked ? (
         <div style={{flex:1}}>
