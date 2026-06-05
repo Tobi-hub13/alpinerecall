@@ -1658,15 +1658,82 @@ function ProfilePicture({initials, onUpdate}) {
   );
 }
 
-const DEMO_DEALERS=[{name:"Sporthaus Schuster",dist:"0.4 km",addr:"Rosenstr. 3, München",open:"Mo–Sa 10–20 Uhr"},{name:"Sport Bittl",dist:"1.2 km",addr:"Karl-Marx-Ring 1, München",open:"Mo–Sa 10–19 Uhr"},{name:"DAV Shop München",dist:"1.8 km",addr:"Bayerstr. 21, München",open:"Mo–Fr 9–18 Uhr"},{name:"Globetrotter München",dist:"2.1 km",addr:"Isartorplatz 8–10",open:"Mo–Sa 10–20 Uhr"}];
+// Händler-Datenbank mit realen GPS-Koordinaten (lat/lng) für Distanzberechnung
+const DEALER_DB=[
+  {name:"Sporthaus Schuster",  addr:"Rosenstr. 3, München",       open:"Mo–Sa 10–20 Uhr", lat:48.1357, lng:11.5756, brands:["Petzl","Black Diamond","Mammut","Ortovox","Edelrid"]},
+  {name:"Sport Bittl",         addr:"Karl-Marx-Ring 1, München",  open:"Mo–Sa 10–19 Uhr", lat:48.1239, lng:11.6472, brands:["Salewa","Black Diamond","Mammut"]},
+  {name:"DAV Shop München",    addr:"Bayerstr. 21, München",      open:"Mo–Fr 9–18 Uhr",  lat:48.1390, lng:11.5607, brands:["Petzl","Edelrid","Ortovox","Mammut"]},
+  {name:"Globetrotter München",addr:"Isartorplatz 8–10, München", open:"Mo–Sa 10–20 Uhr", lat:48.1338, lng:11.5800, brands:["Black Diamond","Salewa","Mammut","Petzl"]},
+];
+
+function calcDist(lat1,lng1,lat2,lng2){
+  const R=6371,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
 
 function DealerMap({recall}) {
   const [expanded, setExpanded] = useState(false);
+  const [gpsState, setGpsState] = useState("idle"); // idle | loading | ok | denied
+  const [userPos, setUserPos]   = useState(null);
+  const [dealers, setDealers]   = useState(DEALER_DB);
+  const [mapSrc, setMapSrc]     = useState(null);
+
+  // Filter Händler nach Hersteller-Brand wenn recall vorhanden
+  const brand = recall?.brand || null;
+
+  function buildMapSrc(lat, lng, dealerList) {
+    // Bounding-Box um Nutzerposition + alle Händler
+    const lats=[lat,...dealerList.map(d=>d.lat)];
+    const lngs=[lng,...dealerList.map(d=>d.lng)];
+    const minLat=Math.min(...lats)-0.01, maxLat=Math.max(...lats)+0.01;
+    const minLng=Math.min(...lngs)-0.008,maxLng=Math.max(...lngs)+0.008;
+    const bbox=`${minLng},${minLat},${maxLng},${maxLat}`;
+    const markers=dealerList.map(d=>`marker=${d.lat},${d.lng}`).join("&");
+    // Nutzer-Marker als erster Marker (roter Punkt durch marker-Parameter)
+    return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat},${lng}&${markers}`;
+  }
+
+  function requestLocation() {
+    if(!navigator.geolocation){setGpsState("denied");return;}
+    setGpsState("loading");
+    navigator.geolocation.getCurrentPosition(
+      (pos)=>{
+        const {latitude:lat,longitude:lng}=pos.coords;
+        setUserPos({lat,lng});
+        // Distanz berechnen & Händler sortieren
+        const withDist=DEALER_DB
+          .filter(d=>!brand||d.brands.includes(brand))
+          .map(d=>({...d,distKm:calcDist(lat,lng,d.lat,d.lng)}))
+          .sort((a,b)=>a.distKm-b.distKm)
+          .map(d=>({...d,dist:(d.distKm<1?`${Math.round(d.distKm*1000)} m`:`${d.distKm.toFixed(1)} km`)}));
+        setDealers(withDist);
+        setMapSrc(buildMapSrc(lat,lng,withDist));
+        setGpsState("ok");
+      },
+      ()=>{
+        setGpsState("denied");
+        // Fallback: statische Karte München-Zentrum zeigen
+        const fallbackDealers=DEALER_DB.filter(d=>!brand||d.brands.includes(brand));
+        setDealers(fallbackDealers.map(d=>({...d,dist:"–"})));
+        setMapSrc(`https://www.openstreetmap.org/export/embed.html?bbox=11.5394%2C48.1174%2C11.6194%2C48.1574&layer=mapnik&${fallbackDealers.map(d=>`marker=${d.lat},${d.lng}`).join("&")}`);
+      },
+      {timeout:8000, enableHighAccuracy:true}
+    );
+  }
+
+  function handleExpand() {
+    setExpanded(e=>!e);
+    if(!expanded && gpsState==="idle") requestLocation();
+  }
+
+  const displayDealers = dealers.filter(d=>!brand||d.brands.includes(brand));
+  const defaultSrc=`https://www.openstreetmap.org/export/embed.html?bbox=11.5394%2C48.1174%2C11.6194%2C48.1574&layer=mapnik&${DEALER_DB.map(d=>`marker=${d.lat},${d.lng}`).join("&")}`;
 
   return (
     <div style={{background:T.white,borderRadius:14,border:`1px solid ${T.s200}`,overflow:"hidden"}}>
       {/* Header */}
-      <div onClick={()=>setExpanded(e=>!e)} style={{
+      <div onClick={handleExpand} style={{
         padding:"14px 16px", display:"flex", alignItems:"center", gap:12, cursor:"pointer",
         background:`linear-gradient(135deg,${T.navy}08,${T.teal}08)`,
       }}>
@@ -1675,43 +1742,75 @@ function DealerMap({recall}) {
         </div>
         <div style={{flex:1}}>
           <p style={{margin:0,fontSize:13,fontWeight:700,color:T.navy,fontFamily:"'DM Sans',sans-serif"}}>Rückgabe-Händler in der Nähe</p>
-          <p style={{margin:0,fontSize:11,color:T.s500,fontFamily:"'DM Sans',sans-serif"}}>{DEMO_DEALERS.length} Händler akzeptieren kostenlosen Ersatz</p>
+          <p style={{margin:0,fontSize:11,color:T.s500,fontFamily:"'DM Sans',sans-serif"}}>
+            {gpsState==="ok"?`${displayDealers.length} Händler – sortiert nach Entfernung`:
+             gpsState==="loading"?"Standort wird ermittelt…":
+             gpsState==="denied"?`${displayDealers.length} Händler (Standort nicht verfügbar)`:
+             `${displayDealers.length} Händler akzeptieren kostenlosen Ersatz`}
+          </p>
         </div>
-        <div style={{transform:expanded?"rotate(90deg)":"rotate(0deg)",transition:"transform .2s"}}><Icon n="chevron" s={16} c={T.s400}/></div>
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          {gpsState==="loading"&&<Spinner size={16} color={T.teal}/>}
+          {gpsState==="ok"&&<span style={{fontSize:10,background:T.tealLt,color:T.teal,fontWeight:700,padding:"2px 7px",borderRadius:10,fontFamily:"'DM Sans',sans-serif"}}>📍 GPS</span>}
+          <div style={{transform:expanded?"rotate(90deg)":"rotate(0deg)",transition:"transform .2s"}}><Icon n="chevron" s={16} c={T.s400}/></div>
+        </div>
       </div>
 
       {expanded && (
         <div>
-          <div style={{position:"relative",height:180,overflow:"hidden",margin:"0 16px 8px",borderRadius:12}}>
-            <iframe
-              title="Händler-Karte"
-              src="https://www.openstreetmap.org/export/embed.html?bbox=11.5594%2C48.1274%2C11.5994%2C48.1474&layer=mapnik&marker=48.1374%2C11.5794"
-              style={{width:"100%",height:"100%",border:"none"}}
-              loading="lazy"
-            />
+          {/* GPS Hinweis-Banner wenn verweigert */}
+          {gpsState==="denied"&&(
+            <div style={{margin:"8px 16px 0",background:T.amberLt,border:`1px solid ${T.amber}40`,borderRadius:10,padding:"8px 12px",display:"flex",gap:8,alignItems:"center"}}>
+              <Icon n="info" s={14} c={T.amber}/>
+              <p style={{margin:0,fontSize:11,color:T.amber,fontFamily:"'DM Sans',sans-serif",flex:1}}>Standort nicht verfügbar – Händlerliste nach Region sortiert.</p>
+              <button onClick={requestLocation} style={{background:T.amber,border:"none",borderRadius:7,padding:"4px 10px",color:T.white,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",flexShrink:0}}>Erneut</button>
+            </div>
+          )}
+
+          {/* Karte */}
+          <div style={{position:"relative",height:200,overflow:"hidden",margin:"10px 16px 8px",borderRadius:12}}>
+            {gpsState==="loading"?(
+              <div style={{width:"100%",height:"100%",background:T.s100,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:10}}>
+                <Spinner size={28} color={T.teal}/>
+                <p style={{margin:0,fontSize:12,color:T.s500,fontFamily:"'DM Sans',sans-serif"}}>Standort wird ermittelt…</p>
+              </div>
+            ):(
+              <iframe
+                title="Händler-Karte"
+                src={mapSrc||defaultSrc}
+                style={{width:"100%",height:"100%",border:"none"}}
+                loading="lazy"
+              />
+            )}
             <div style={{position:"absolute",bottom:6,right:6,background:"rgba(255,255,255,0.9)",borderRadius:6,padding:"3px 7px"}}>
               <p style={{margin:0,fontSize:10,color:T.s500,fontFamily:"'DM Sans',sans-serif"}}>© OpenStreetMap</p>
             </div>
+            {gpsState==="ok"&&userPos&&(
+              <div style={{position:"absolute",top:8,left:8,background:"rgba(13,148,136,0.92)",borderRadius:8,padding:"4px 9px",display:"flex",alignItems:"center",gap:5}}>
+                <span style={{fontSize:11}}>📍</span>
+                <p style={{margin:0,fontSize:10,color:T.white,fontWeight:700,fontFamily:"'DM Sans',sans-serif"}}>Dein Standort</p>
+              </div>
+            )}
           </div>
-          <div>
 
           {/* Händlerliste */}
-          <div style={{padding:"0 16px 8px",display:"flex",flexDirection:"column",gap:8,marginTop:8}}>
-            {DEMO_DEALERS.map((d,i)=>(
+          <div style={{padding:"0 16px 8px",display:"flex",flexDirection:"column",gap:8,marginTop:4}}>
+            {displayDealers.map((d,i)=>(
               <div key={i}
                 onClick={()=>{ const q=encodeURIComponent(d.name+" "+d.addr); const ios=/iPad|iPhone|iPod/.test(navigator.userAgent); window.open(ios?`maps://?q=${q}`:`https://maps.google.com/?q=${q}`,"_blank"); }}
-                style={{background:T.s100,borderRadius:12,padding:"10px 12px",display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer"}}>
-                <div style={{width:32,height:32,borderRadius:8,background:T.tealLt,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}>
+                style={{background:i===0&&gpsState==="ok"?T.tealLt:T.s100,borderRadius:12,padding:"10px 12px",display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer",border:`1px solid ${i===0&&gpsState==="ok"?T.teal+"40":T.s200}`}}>
+                <div style={{width:32,height:32,borderRadius:8,background:i===0&&gpsState==="ok"?T.teal:T.tealLt,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}>
                   <span style={{fontSize:14}}>🏪</span>
                 </div>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                     <p style={{margin:0,fontSize:13,fontWeight:700,color:T.navy,fontFamily:"'DM Sans',sans-serif"}}>{d.name}</p>
-                    <span style={{fontSize:11,fontWeight:700,color:T.teal,flexShrink:0,marginLeft:8,fontFamily:"'DM Sans',sans-serif"}}>{d.dist}</span>
+                    <span style={{fontSize:11,fontWeight:700,color:gpsState==="ok"?T.teal:T.s500,flexShrink:0,marginLeft:8,fontFamily:"'DM Sans',sans-serif"}}>{d.dist||"–"}</span>
                   </div>
                   <p style={{margin:"2px 0 0",fontSize:11,color:T.s500,fontFamily:"'DM Sans',sans-serif"}}>{d.addr}</p>
                   <p style={{margin:"1px 0 0",fontSize:11,color:T.s400,fontFamily:"'DM Sans',sans-serif"}}>{d.open}</p>
-                  <p style={{margin:"4px 0 0",fontSize:10,color:T.teal,fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>📍 In Karten öffnen →</p>
+                  {i===0&&gpsState==="ok"&&<p style={{margin:"3px 0 0",fontSize:10,color:T.teal,fontWeight:700,fontFamily:"'DM Sans',sans-serif"}}>⭐ Nächster Händler</p>}
+                  <p style={{margin:"3px 0 0",fontSize:10,color:T.teal,fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>📍 In Karten öffnen →</p>
                 </div>
               </div>
             ))}
@@ -1723,7 +1822,6 @@ function DealerMap({recall}) {
             </div>
           </div>
         </div>
-      </div>
       )}
     </div>
   );
